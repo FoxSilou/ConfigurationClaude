@@ -8,7 +8,9 @@ This workspace contains two independent solutions sharing a common development p
 
 ```
 workspace/
-├── .claude/              ← Shared Claude Code config (discovery agents, cross-repo investigation)
+├── .claude/              ← Shared Claude Code config (agents, skills, settings)
+│   ├── agents/           ← Workspace-level agents (event-storming, bdd-workshop, investigate-bug)
+│   └── skills/           ← Workspace-level skills (slash commands + knowledge skills)
 ├── backend/              ← Backend solution (architecture and tech defined in backend/CLAUDE.md)
 │   ├── .claude/          ← Backend-specific agents, rules, skills
 │   └── CLAUDE.md         ← Backend conventions
@@ -87,14 +89,39 @@ Readability is not a style preference — it is a design constraint. Naming matt
 |---|---|
 | `@scaffold-front` | Frontend infrastructure scaffolding (project, services, test harness) |
 
-### Commands
+---
 
-| Command | Description |
-|---|---|
-| `/scaffold` | Orchestrator — asks scope then delegates to `@scaffold` and/or `@scaffold-front` |
+## Slash Commands (skills)
+
+All slash commands delegate to their corresponding agent via `context: fork`.
+
+### Global
+
+| Command | Agent | Description |
+|---|---|---|
+| `/event-storming` | `@event-storming` | Domain discovery workshop |
+| `/bdd-workshop` | `@bdd-workshop` | Example Mapping + Gherkin feature files |
+| `/investigate-bug` | `@investigate-bug` | Cross-repo bug investigation |
+| `/scaffold` | _(orchestrator)_ | Asks scope then delegates to backend and/or frontend |
+
+### Backend
+
+| Command | Agent | Description |
+|---|---|---|
+| `/scaffold-back` | `@scaffold` | Infrastructure scaffolding (general or BC-specific) |
+| `/implement-feature-back` | `@implement-feature` | TDD step-by-step (user gate per RED/GREEN/REFACTOR) |
+| `/implement-feature-auto-back` | `@implement-feature` | TDD autonomous (single gate at the end) |
+| `/fix-bug-back` | `@fix-bug` | Test-first bug fixing |
+| `/refactor-back` | `@refactor` | Iso-functional refactoring |
+
+### Frontend
+
+| Command | Agent | Description |
+|---|---|---|
+| `/scaffold-front` | `@scaffold-front` | Frontend project structure + test harness |
 
 ### Typical workflow
 
 ```
-@event-storming → @bdd-workshop → @scaffold → @implement-feature → @fix-bug
+/event-storming → /bdd-workshop → /scaffold → /implement-feature-back → /fix-bug-back
 ```

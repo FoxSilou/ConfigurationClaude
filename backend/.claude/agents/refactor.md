@@ -12,6 +12,7 @@ skills:
   - unit-testing
   - backend-conventions
 maxTurns: 100
+memory: project
 ---
 
 # Agent: refactor

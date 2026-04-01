@@ -1,8 +1,13 @@
 ---
+name: scaffold-front
 description: Scaffold frontend infrastructure — project structure, services, test harness (bUnit + Playwright)
+user-invocable: true
+argument-hint: "[feature area or description]"
+context: fork
+agent: scaffold-front
 ---
 
-# /scaffold-front → scaffold-front agent
+# /scaffold-front -> scaffold-front agent
 
 Delegates to the `scaffold-front` agent.
 

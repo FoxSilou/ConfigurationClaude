@@ -18,7 +18,8 @@ This is the frontend solution (Blazor / MAUI). It communicates with the backend 
 The frontend follows a clean separation between:
 
 - **Pages** — top-level routable components
-- **Components** — reusable UI building blocks
+- **Components** — reusable UI building blocks (wrapped via UI Kit, see skill `blazor-ui-kit`)
+- **Presenters** — pure C# classes handling UI logic (see skill `blazor-hexagonal`)
 - **Services** — injected services for API communication and state management
 - **Models** — DTOs matching the backend API contracts
 
@@ -31,8 +32,14 @@ The frontend follows a clean separation between:
 - Never use Playwright when bUnit can reproduce the bug.
 
 → See skill: `frontend-testing`
+→ Hexagonal frontend (Presenters): see skill `blazor-hexagonal`
+→ UI Kit (wrappers Radzen): see skill `blazor-ui-kit`
 
----
+## Slash Commands
+
+| Command | Description |
+|---|---|
+| `/scaffold-front` | Frontend project structure + test harness (bUnit + Playwright) |
 
 ## Expected Behavior
 

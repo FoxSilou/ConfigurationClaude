@@ -1,16 +1,21 @@
 ---
+name: scaffold-back
 description: Scaffold infrastructure — general foundation or bounded context specific
+user-invocable: true
+argument-hint: "[bounded context name]"
+context: fork
+agent: scaffold
 ---
 
-# /scaffold-back → scaffold agent
+# /scaffold-back -> scaffold agent
 
 Delegates to the `scaffold` agent.
 
 ## Usage
 
 ```
-/scaffold-back                        → general scaffolding (SharedKernel, messaging, API shell, E2E harness)
-/scaffold-back <bounded context name> → bounded context scaffolding (persistence, API endpoints, DI, E2E fakes)
+/scaffold-back                        -> general scaffolding (SharedKernel, messaging, API shell, E2E harness)
+/scaffold-back <bounded context name> -> bounded context scaffolding (persistence, API endpoints, DI, E2E fakes)
 ```
 
 ## Modes
@@ -38,13 +43,13 @@ Scaffolds the vertical slice for a specific bounded context:
 
 ```
 /scaffold-back
-→ General scaffolding: SharedKernel, messaging, API shell, E2E harness
+-> General scaffolding: SharedKernel, messaging, API shell, E2E harness
 
 /scaffold-back Identite
-→ BC scaffolding: persistence, endpoints, DI for Identité
+-> BC scaffolding: persistence, endpoints, DI for Identite
 
 /scaffold-back Tournois
-→ BC scaffolding: persistence, endpoints, DI for Tournois
+-> BC scaffolding: persistence, endpoints, DI for Tournois
 ```
 
 ## Constraints
@@ -56,5 +61,5 @@ Scaffolds the vertical slice for a specific bounded context:
 
 ## Suggested follow-up
 
-- After general scaffolding → `/scaffold-back <BoundedContext>` for each BC
-- After BC scaffolding → `/implement-feature` Phase 2 (E2E)
+- After general scaffolding -> `/scaffold-back <BoundedContext>` for each BC
+- After BC scaffolding -> `/implement-feature` Phase 2 (E2E)

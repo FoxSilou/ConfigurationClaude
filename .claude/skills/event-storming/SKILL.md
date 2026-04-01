@@ -1,8 +1,13 @@
 ---
+name: event-storming
 description: Event Storming workshop for domain discovery — produces markdown + Excalidraw board
+user-invocable: true
+argument-hint: "<domain or document>"
+context: fork
+agent: event-storming
 ---
 
-# /event-storming → event-storming agent
+# /event-storming -> event-storming agent
 
 Delegates to the `event-storming` agent.
 
@@ -26,8 +31,8 @@ Delegates to the `event-storming` agent.
 3. **Validation gate** — review before output
 4. **Outputs**:
    - `docs/event-storming/event-storming-<domain>-<date>.md` — structured markdown
-   - `docs/event-storming/event-storming-<domain>-<date>-aggregates.excalidraw` — aggregate-centric view (blocks CMD→AGG→EVT, policies below, no arrows)
-   - `docs/event-storming/event-storming-<domain>-<date>-flows.excalidraw` — flow view (use-case chains left→right, curved arrows, forks)
+   - `docs/event-storming/event-storming-<domain>-<date>-aggregates.excalidraw` — aggregate-centric view (blocks CMD->AGG->EVT, policies below, no arrows)
+   - `docs/event-storming/event-storming-<domain>-<date>-flows.excalidraw` — flow view (use-case chains left->right, curved arrows, forks)
 
 ## Suggested follow-up
 

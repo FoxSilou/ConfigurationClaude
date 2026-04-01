@@ -5,6 +5,7 @@ description: >
   Use when writing, reviewing, or discussing unit tests for Commands or Queries.
   Covers: AAA structure, test doubles (Fakes/Stubs only, no Mocks),
   French naming conventions, FluentAssertions patterns, and test file organization.
+user-invocable: false
 ---
 
 

@@ -7,6 +7,7 @@ description: >
   - view: process -- Process Modeling chains (Event -> Policy -> Command -> System -> Event)
   Complements the excalidraw-event-storming skill which handles the final
   Software Design views (aggregate + flow).
+user-invocable: false
 ---
 
 # Excalidraw Event Storming Steps -- Intermediate Diagrams

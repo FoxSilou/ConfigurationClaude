@@ -50,6 +50,19 @@ Dependencies flow **inward only**: Api → Application → Domain. Infrastructur
 - **Problem Details (RFC 7807)** for API error responses.
 
 → Full conventions (naming table, C# style, Always/Never checklist): see skill `backend-conventions`
+→ TDD discipline: see skill `tdd-workflow`
+→ Unit testing conventions: see skill `unit-testing`
+→ E2E testing conventions: see skill `e2e-testing`
+
+## Slash Commands
+
+| Command | Description |
+|---|---|
+| `/scaffold-back` | Infrastructure scaffolding (general foundation or BC-specific) |
+| `/implement-feature-back` | TDD step-by-step with user gates |
+| `/implement-feature-auto-back` | TDD autonomous mode |
+| `/fix-bug-back` | Test-first bug fixing |
+| `/refactor-back` | Iso-functional refactoring |
 
 ## Useful Commands
 

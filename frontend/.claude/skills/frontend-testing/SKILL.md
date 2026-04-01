@@ -1,3 +1,14 @@
+---
+name: frontend-testing
+description: >
+  Frontend testing conventions for Blazor/MAUI (bUnit + Playwright).
+  Use when writing, reviewing, or discussing frontend tests.
+  Covers: bUnit component testing, Playwright E2E for UI-reported bugs,
+  decision rule for bUnit vs Playwright, service injection with Stubs,
+  event handling tests, and data-testid selector conventions.
+user-invocable: false
+---
+
 # Skill: Frontend Testing (Blazor / MAUI)
 
 ## Stack

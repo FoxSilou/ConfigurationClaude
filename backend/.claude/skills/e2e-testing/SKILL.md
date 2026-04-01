@@ -6,6 +6,7 @@ description: >
   the system through its HTTP interface. Covers: black-box testing via
   POST then GET, WebApplicationFactory setup, TestContainers for database,
   status code and DTO assertions, and test file organization.
+user-invocable: false
 ---
 
 

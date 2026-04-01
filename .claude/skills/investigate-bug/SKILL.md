@@ -1,8 +1,13 @@
 ---
+name: investigate-bug
 description: Investigate a UI-reported bug across frontend and backend solutions before fixing
+user-invocable: true
+argument-hint: "<bug description and reproduction steps>"
+context: fork
+agent: investigate-bug
 ---
 
-# /investigate-bug → investigate-bug agent
+# /investigate-bug -> investigate-bug agent
 
 Delegates to the `investigate-bug` agent.
 

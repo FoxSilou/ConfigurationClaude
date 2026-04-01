@@ -1,8 +1,13 @@
 ---
+name: implement-feature-back
 description: Implement a new feature using TDD step-by-step (user gate after each RED, GREEN, and REFACTOR)
+user-invocable: true
+argument-hint: "<feature description or .feature file>"
+context: fork
+agent: implement-feature
 ---
 
-# /implement-feature-back → implement-feature agent (STEP-BY-STEP mode)
+# /implement-feature-back -> implement-feature agent (STEP-BY-STEP mode)
 
 Delegates to the `implement-feature` agent in **STEP-BY-STEP** mode.
 
@@ -14,7 +19,7 @@ In this mode, the user validates each step:
 ## Usage
 
 ```
-/implement-feature <feature description or .feature file>
+/implement-feature-back <feature description or .feature file>
 ```
 
 ## Examples
@@ -27,9 +32,9 @@ In this mode, the user validates each step:
 ## What this triggers
 
 1. **ANALYSE** — produces `docs/<feature-name>.md` + user gate
-2. **TDD STEP-BY-STEP** — RED → ⛔ → GREEN → ⛔ → REFACTOR → ⛔ per test
+2. **TDD STEP-BY-STEP** — RED -> gate -> GREEN -> gate -> REFACTOR -> gate per test
 3. **E2E** — critical paths confirmed by user
 
 ## See also
 
-- `/implement-feature-auto` — autonomous mode with a single gate at the end
+- `/implement-feature-auto-back` — autonomous mode with a single gate at the end

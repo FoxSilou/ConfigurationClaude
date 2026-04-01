@@ -1,8 +1,11 @@
 ---
+name: scaffold
 description: Scaffold infrastructure for backend, frontend, or both — orchestrates scaffold-back and scaffold-front
+user-invocable: true
+argument-hint: "[bounded context or feature area]"
 ---
 
-# /scaffold → Global scaffolding orchestrator
+# /scaffold -> Global scaffolding orchestrator
 
 Orchestrates the `scaffold-back` and `scaffold-front` agents. Asks the user which scope to scaffold before delegating.
 
@@ -39,20 +42,20 @@ Then, for backend, ask the scope:
 
 ```
 /scaffold
-→ "Que souhaitez-vous scaffolder ? Backend, Frontend, ou les deux ?"
-→ User: "Backend uniquement"
-→ "Quel type ? Général ou Bounded context ?"
-→ User: "Général"
-→ Runs scaffold-back (general mode)
+-> "Que souhaitez-vous scaffolder ? Backend, Frontend, ou les deux ?"
+-> User: "Backend uniquement"
+-> "Quel type ? Général ou Bounded context ?"
+-> User: "Général"
+-> Runs scaffold-back (general mode)
 
 /scaffold Identite
-→ "Que souhaitez-vous scaffolder ? Backend, Frontend, ou les deux ?"
-→ User: "Les deux"
-→ Runs scaffold-back for Identite, then scaffold-front
+-> "Que souhaitez-vous scaffolder ? Backend, Frontend, ou les deux ?"
+-> User: "Les deux"
+-> Runs scaffold-back for Identite, then scaffold-front
 
 /scaffold
-→ User: "Backend uniquement, général"
-→ Runs scaffold-back (general mode)
+-> User: "Backend uniquement, général"
+-> Runs scaffold-back (general mode)
 ```
 
 ## See also

@@ -13,6 +13,7 @@ skills:
   - e2e-testing
   - backend-conventions
 maxTurns: 100
+memory: project
 ---
 
 # Agent: fix-bug

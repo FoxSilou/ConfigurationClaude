@@ -6,6 +6,7 @@ description: >
   Covers: analysis phase with ordered test list, Transformation Priority Premise (TPP),
   step-by-step vs autonomous execution modes, baby steps, and violation detection.
   Builds on the unit-testing skill.
+user-invocable: false
 ---
 
 

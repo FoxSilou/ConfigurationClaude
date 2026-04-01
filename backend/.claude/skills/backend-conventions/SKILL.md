@@ -6,6 +6,7 @@ description: >
   when creating new domain types, commands, queries, repositories, or services.
   Covers: naming table (French ubiquitous language), C# style rules,
   Always/Never behavioral checklist, error handling strategy, and test double conventions.
+user-invocable: false
 ---
 
 # Skill: Backend Conventions

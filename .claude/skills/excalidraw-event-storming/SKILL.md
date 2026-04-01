@@ -6,6 +6,7 @@ description: >
   - view: aggregate — catalog of all aggregates with their commands/events, no arrows
   - view: flow — use-case flows derived from policy chains, left-to-right with curved arrows
   Produces two .excalidraw files per event storming session.
+user-invocable: false
 ---
 
 # Excalidraw Event Storming Diagram Skill

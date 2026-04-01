@@ -1,8 +1,13 @@
 ---
+name: fix-bug-back
 description: Fix a bug using a test-first approach — E2E reproduction before any fix
+user-invocable: true
+argument-hint: "<bug description>"
+context: fork
+agent: fix-bug
 ---
 
-# /fix-bug-back → fix-bug agent
+# /fix-bug-back -> fix-bug agent
 
 Delegates to the `fix-bug` agent.
 

@@ -1,8 +1,13 @@
 ---
+name: bdd-workshop
 description: BDD workshop — Example Mapping + Gherkin feature files from domain knowledge
+user-invocable: true
+argument-hint: "<feature or event-storming document>"
+context: fork
+agent: bdd-workshop
 ---
 
-# /bdd-workshop → bdd-workshop agent
+# /bdd-workshop -> bdd-workshop agent
 
 Delegates to the `bdd-workshop` agent.
 
