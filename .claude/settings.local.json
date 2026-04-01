@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet new:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet list:*)",
+      "Bash(dotnet test:*)",
+      "Bash(python -c \":*)",
+      "Bash(python gen_diagram.py)",
+      "Bash(python -c \"import json; d=json.load\\(open\\(''C:/Developpement/Perso/ImperiumRexClaude/workspace/docs/event-storming/event-storming-imperium-rex-2026-03-28.excalidraw''\\)\\); print\\(f''Valid JSON: {d[\"\"type\"\"]}''\\); print\\(f''Elements: {len\\(d[\"\"elements\"\"]\\)}''\\); types={}; [types.__setitem__\\(e[''type''], types.get\\(e[''type''],0\\)+1\\) for e in d[''elements'']]; print\\(f''By type: {types}''\\)\")",
+      "Bash(python3:*)",
+      "Bash(cd:*)",
+      "Bash(python:*)",
+      "Bash(/tmp/verify_excalidraw.py:*)",
+      "Bash(/tmp/verify.py:*)",
+      "Bash(/tmp/check_pivotal.py:*)",
+      "Bash(/tmp/find_pivotal.py:*)",
+      "Bash(/tmp/full_verify.py:*)",
+      "Bash(/tmp/detailed_report.py:*)",
+      "Read(//c/tmp/**)",
+      "Bash(echo:*)",
+      "Bash(node generate-aggregates.js)",
+      "Bash(where node:*)",
+      "Read(//c/Program Files/**)",
+      "Bash(where dotnet:*)",
+      "Bash(where python:*)",
+      "Bash(where powershell:*)",
+      "Bash(\"C:/Users/cedric/AppData/Local/Programs/Python/Python312/python.exe\" \"C:/Developpement/Perso/ImperiumRexClaude/workspace/docs/event-storming/generate-aggregates.py\")"
+    ]
+  }
+}

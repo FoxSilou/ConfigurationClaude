@@ -1,0 +1,26 @@
+# ===========================================
+# Claude Code config only — everything else ignored
+# ===========================================
+
+# 1. Block everything by default
+*
+
+# 2. Allow this file
+!.gitignore
+
+# 3. Root-level Claude Code files
+!CLAUDE.md
+!.claude/
+!.claude/**
+
+# 4. Backend level — unlock parent then Claude Code files
+!backend/
+!backend/CLAUDE.md
+!backend/.claude/
+!backend/.claude/**
+
+# 5. Frontend level — unlock parent then Claude Code files
+!frontend/
+!frontend/CLAUDE.md
+!frontend/.claude/
+!frontend/.claude/**
