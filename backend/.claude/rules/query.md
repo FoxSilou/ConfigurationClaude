@@ -9,7 +9,7 @@ globs: ["**/Application/**/*.cs", "**/Read/**/*.cs"]
 
 A query and its handler are always in the **same file**, with the handler as a **nested class** inside the query. This mirrors the Command pattern.
 
-**⚠️ RÈGLE CRITIQUE**: `IQuery<T>` et `IQueryHandler<TQuery, TResult>` sont des **interfaces génériques définies dans SharedKernel**. Elles ne référencent **JAMAIS** MediatR. MediatR est un détail d'infrastructure. Ni le Query, ni le Handler ne doivent avoir de `using MediatR`.
+**⚠️ RÈGLE CRITIQUE**: `IQuery<T>` et `IQueryHandler<TQuery, TResult>` sont des **interfaces génériques définies dans Shared.Write.Domain**. Elles ne référencent **JAMAIS** MediatR. MediatR est un détail d'infrastructure. Ni le Query, ni le Handler ne doivent avoir de `using MediatR`.
 
 Queries live in the **Read stack** (`Read/Application/`), separate from the Write stack. They are placed flat (no `Queries/` subfolder).
 

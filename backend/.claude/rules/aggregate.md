@@ -9,12 +9,12 @@ globs: ["**/Domain/**/*.cs", "**/Aggregates/**/*.cs"]
 
 All aggregate roots inherit from `AggregateRoot<TId>` and implement `IAggregateRoot`. This abstract base class provides domain event collection and dispatch, and shared aggregate behavior (equality by Id, etc.).
 
-The base class and interface live in **SharedKernel** (shared across Bounded Contexts).
+The base class and interface live in **Shared.Write.Domain** (shared across Bounded Contexts).
 
 ## Base Types
 
 ```csharp
-// SharedKernel
+// Shared.Write.Domain
 public interface IDomainEvent
 {
     DateTimeOffset OccurredOn { get; }
@@ -81,7 +81,7 @@ public sealed class Utilisateur : AggregateRoot<UtilisateurId>
 ## Directory Structure
 
 ```
-src/<BoundedContext>/Write/Domain/
+src/<BoundedContext>/Write/<BC>.Write.Domain/
 ├── Aggregates/
 │   └── Utilisateur.cs
 ├── Entities/

@@ -1,6 +1,6 @@
 # CLAUDE.md — Backend
 
-ASP.NET Core solution following **Hexagonal Architecture**, **DDD**, and **strict CQRS**.
+ASP.NET Core solution **ImperiumRex** following **Hexagonal Architecture**, **DDD**, and **strict CQRS**.
 
 ## Tech Stack
 
@@ -8,7 +8,8 @@ ASP.NET Core solution following **Hexagonal Architecture**, **DDD**, and **stric
 - **Runtime**: .NET (latest stable — currently .NET 10)
 - **Web framework**: ASP.NET Core (Minimal APIs or Controllers)
 - **ORM**: Entity Framework Core
-- **Internal messaging**: MediatR — used as an **infrastructure adapter** behind generic interfaces in SharedKernel
+- **Internal messaging**: MediatR — used as an **infrastructure adapter** behind generic interfaces in Shared.Write.Domain
+- **Persistence**: Event Sourcing by default (custom SQL event store), state-based (EF Core) as alternative
 - **Time abstraction**: `TimeProvider` (built-in .NET 8+)
 - **Tests**: xUnit, FluentAssertions
 
@@ -16,26 +17,32 @@ ASP.NET Core solution following **Hexagonal Architecture**, **DDD**, and **stric
 
 ```
 src/
+├── Shared/
+│   ├── Write/
+│   │   ├── Shared.Write.Domain.csproj          → AggregateRoot<TId>, IDomainEvent, ITypedId, ICommand, IQuery,
+│   │   │                                         ICommandBus, IQueryBus, IEventStore, IProjection, exceptions
+│   │   └── Shared.Write.Infrastructure.csproj  → MediatR adapters (MediatRCommandBus, AddMessaging()),
+│   │                                              ES infra (IStateRebuilder, EventSerializer, TypedIdConverterFactory)
+│   └── Read/                                    → Created when needed
 ├── <BoundedContext>/
 │   ├── Write/
-│   │   ├── Domain/           → Aggregates, Entities, ValueObjects, Events, Ports
-│   │   ├── Application/      → Commands + Handlers (flat), Behaviors, Ports
-│   │   ├── Infrastructure/   → Adapters (EF Core, MediatR, external services)
-│   │   └── Api/              → Endpoints
+│   │   ├── <BC>.Write.Domain.csproj            → Aggregates, Entities, ValueObjects, Events, Ports
+│   │   ├── <BC>.Write.Application.csproj       → Commands + Handlers (flat), Behaviors, Ports
+│   │   └── <BC>.Write.Infrastructure.csproj    → Adapters (EF Core, EventStore, external services)
 │   └── Read/
-│       ├── Application/      → Queries + Handlers (flat), Ports
-│       ├── Infrastructure/   → Read adapters (Dapper, read DbContext)
-│       └── Api/              → Endpoints
-├── SharedKernel/             → AggregateRoot<TId>, ICommand, IQuery, ICommandBus, IQueryBus
-└── Api/
-    └── Program.cs            ← Composition root
+│       ├── <BC>.Read.Application.csproj        → Queries + Handlers (flat), Ports
+│       └── <BC>.Read.Infrastructure.csproj     → Read adapters (Dapper, ReadDbContext, projections)
+├── Api/
+│   └── Api.csproj                               ← Composition root
 tests/
 ├── <BoundedContext>.Write.Application.UnitTests/
 ├── <BoundedContext>.Read.Application.UnitTests/
-└── <SolutionName>.E2E.Tests/
+└── ImperiumRex.E2E.Tests/
 ```
 
 Dependencies flow **inward only**: Api → Application → Domain. Infrastructure → Application → Domain. Domain and Application must **never** reference Infrastructure or Api. Read and Write are **independent stacks**.
+
+**Important**: projects are placed **directly** under `Write/` or `Read/` — no `Domain/`, `Application/`, or `Infrastructure/` subdirectories within them.
 
 ## Critical Rules (always apply)
 
@@ -48,6 +55,7 @@ Dependencies flow **inward only**: Api → Application → Domain. Infrastructur
 - **Ports use Value Objects**, never raw primitives.
 - **Invariants in private constructor**, not in factory methods.
 - **Problem Details (RFC 7807)** for API error responses.
+- **Event Sourcing by default** — domain-pure aggregates, custom SQL event store, state rebuilders in Infrastructure.
 
 → Full conventions (naming table, C# style, Always/Never checklist): see skill `backend-conventions`
 → TDD discipline: see skill `tdd-workflow`
@@ -71,7 +79,7 @@ Dependencies flow **inward only**: Api → Application → Domain. Infrastructur
 dotnet build
 dotnet test
 dotnet test --collect:"XPlat Code Coverage"
-dotnet ef migrations add <n> --project src/<BC>/Write/Infrastructure --startup-project src/Api
-dotnet ef database update --project src/<BC>/Write/Infrastructure --startup-project src/Api
+dotnet ef migrations add <n> --project src/<BC>/Write/<BC>.Write.Infrastructure --startup-project src/Api
+dotnet ef database update --project src/<BC>/Write/<BC>.Write.Infrastructure --startup-project src/Api
 dotnet format
 ```

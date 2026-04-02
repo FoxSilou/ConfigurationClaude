@@ -49,7 +49,7 @@ CREATE TABLE AggregateSnapshots (
 ## Event Store port
 
 ```csharp
-// SharedKernel/Abstractions/IEventStore.cs
+// Shared.Write.Domain/Abstractions/IEventStore.cs
 public interface IEventStore
 {
     /// <summary>
@@ -97,29 +97,30 @@ public interface IEventStore
 
 public sealed record Snapshot(int Version, object State);
 
-// SharedKernel.Infrastructure/Exceptions/ConcurrencyException.cs
-// NOT in SharedKernel (pure domain) — this is an infrastructure concern (store conflict).
-// If SharedKernel.Infrastructure does not exist yet in the project, place it temporarily
-// in the BC's Infrastructure with a TODO comment.
+// Shared.Write.Infrastructure/Exceptions/ConcurrencyException.cs
+// NOT in Shared.Write.Domain (pure domain) — this is an infrastructure concern (store conflict).
+// Lives in Shared.Write.Infrastructure.
 public class ConcurrencyException(string streamId, int expectedVersion)
     : Exception($"Concurrency conflict on stream '{streamId}' at expected version {expectedVersion}.");
 ```
 
-### Where to place infrastructure-shared types: `SharedKernel.Infrastructure`
+### Where to place infrastructure-shared types: `Shared.Write.Infrastructure`
 
 Some types are shared across bounded contexts but are infrastructure concerns, not domain concepts. Examples: `ConcurrencyException`, `EventSerializer`, `TypedIdConverterFactory`, `IStateRebuilder`.
 
-These belong in a `SharedKernel.Infrastructure` project that references `SharedKernel` (for `IDomainEvent`, `IEventStore`, `ITypedId<T>`) and can take technical dependencies (System.Text.Json, EF Core abstractions).
+These belong in `Shared.Write.Infrastructure` which references `Shared.Write.Domain` (for `IDomainEvent`, `IEventStore`, `ITypedId<T>`) and can take technical dependencies (System.Text.Json, EF Core abstractions).
 
 ```
 src/
-├── SharedKernel/                      ← Pure C#, zero dependencies
-│   ├── ITypedId.cs
-│   ├── Abstractions/
-│   │   └── IEventStore.cs
-│   └── Exceptions/
-│       └── DomainException.cs
-├── SharedKernel.Infrastructure/       ← Technical, references SharedKernel
+├── Shared/
+│   ├── Write/
+│   │   ├── Shared.Write.Domain.csproj           ← Pure C#, zero dependencies
+│   │   │   ├── ITypedId.cs
+│   │   │   ├── Abstractions/
+│   │   │   │   └── IEventStore.cs
+│   │   │   └── Exceptions/
+│   │   │       └── DomainException.cs
+│   │   └── Shared.Write.Infrastructure.csproj   ← Technical, references Shared.Write.Domain
 │   ├── Exceptions/
 │   │   └── ConcurrencyException.cs
 │   ├── EventStore/
@@ -128,15 +129,15 @@ src/
 │   │   ├── EventSerializer.cs
 │   │   ├── TypedIdConverter.cs
 │   │   └── TypedIdConverterFactory.cs
+│   └── Read/                                     ← Created when needed
 └── <BoundedContext>/
-    └── Write/Infrastructure/
-        ├── EventStore/StateRebuilders/
-        │   └── PartieStateRebuilder.cs              ← Concrete, per aggregate
-        └── Persistence/
-            └── EventSourcedPartieRepository.cs      ← Concrete, uses StateRebuilder
+    └── Write/
+        └── <BC>.Write.Infrastructure.csproj
+            ├── EventStore/StateRebuilders/
+            │   └── PartieStateRebuilder.cs          ← Concrete, per aggregate
+            └── Persistence/
+                └── EventSourcedPartieRepository.cs  ← Concrete, uses StateRebuilder
 ```
-
-If the project doesn't yet have `SharedKernel.Infrastructure`, it's fine to start with these types in the BC's Infrastructure and extract them when a second BC needs them. The skill assumes the extracted structure for clarity.
 
 ## SQL Event Store implementation
 
@@ -345,10 +346,10 @@ internal sealed class EventSerializer
 
 Domain events contain Value Objects and Typed Ids. The serializer needs custom converters so that e.g. `PartieId` serializes as a plain GUID string rather than `{"Valeur": "..."}`.
 
-Rather than using fragile reflection, define a contract in SharedKernel that all Typed Ids implement:
+Rather than using fragile reflection, define a contract in Shared.Write.Domain that all Typed Ids implement:
 
 ```csharp
-// SharedKernel/ITypedId.cs
+// Shared.Write.Domain/ITypedId.cs
 public interface ITypedId<out TPrimitive>
 {
     TPrimitive Valeur { get; }
@@ -368,7 +369,7 @@ public readonly record struct PartieId(Guid Valeur) : ITypedId<Guid>
 The generic converter uses the interface — no reflection needed for reading/writing:
 
 ```csharp
-// SharedKernel.Infrastructure/Serialization/TypedIdConverter.cs
+// Shared.Write.Infrastructure/Serialization/TypedIdConverter.cs
 internal sealed class TypedIdConverter<TId> : JsonConverter<TId>
     where TId : struct, ITypedId<Guid>
 {
@@ -389,7 +390,7 @@ internal sealed class TypedIdConverter<TId> : JsonConverter<TId>
 A factory simplifies registration for all Typed Ids in a given assembly:
 
 ```csharp
-// SharedKernel.Infrastructure/Serialization/TypedIdConverterFactory.cs
+// Shared.Write.Infrastructure/Serialization/TypedIdConverterFactory.cs
 internal sealed class TypedIdConverterFactory : JsonConverterFactory
 {
     public override bool CanConvert(Type typeToConvert)

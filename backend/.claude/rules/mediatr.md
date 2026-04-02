@@ -8,24 +8,24 @@ globs: ["**/Infrastructure/**/*.cs", "**/Api/**/*.cs"]
 
 ## Core Principle
 
-**MediatR is an infrastructure detail.** It must NEVER be referenced in the Domain or Application layers. The generic interfaces `ICommand<T>`, `IQuery<T>`, `ICommandHandler<TCommand, TResult>`, `IQueryHandler<TQuery, TResult>`, `ICommandBus`, `IQueryBus` are defined in **SharedKernel**. The MediatR adapter in Infrastructure bridges them.
+**MediatR is an infrastructure detail.** It must NEVER be referenced in the Domain or Application layers. The generic interfaces `ICommand<T>`, `IQuery<T>`, `ICommandHandler<TCommand, TResult>`, `IQueryHandler<TQuery, TResult>`, `ICommandBus`, `IQueryBus` are defined in **Shared.Write.Domain**. The MediatR adapter in Infrastructure bridges them.
 
 ## ⚠️ NON-NEGOTIABLE RULE
 
 ```
 Domain         → NO MediatR reference
 Application    → NO MediatR reference (uses ICommand, IQuery, ICommandHandler, IQueryHandler)
-SharedKernel   → NO MediatR reference (defines ICommandBus, IQueryBus, etc.)
+Shared.Write.Domain   → NO MediatR reference (defines ICommandBus, IQueryBus, etc.)
 Infrastructure → YES — MediatR adapters, pipeline behaviors, DI registration
 Api            → Acceptable — Composition root, uses ISender to dispatch (or use ICommandBus port)
 ```
 
-**No file** in Domain, Application, or SharedKernel must contain `using MediatR`.
+**No file** in Domain, Application, or Shared.Write.Domain must contain `using MediatR`.
 
-## Generic Interfaces (SharedKernel)
+## Generic Interfaces (Shared.Write.Domain)
 
 ```csharp
-// Defined in SharedKernel — NO MediatR dependency
+// Defined in Shared.Write.Domain — NO MediatR dependency
 public interface ICommand<TResult> { }
 public interface ICommandHandler<in TCommand, TResult> where TCommand : ICommand<TResult>
 {
@@ -87,7 +87,7 @@ app.MapPost("/api/parties", async (CreerPartieRequest request, ICommandBus comma
 | Layer | MediatR reference | Role |
 |---|---|---|
 | **Domain** | ❌ NEVER | Domain model, no technical dependencies |
-| **SharedKernel** | ❌ NEVER | ICommand, IQuery, ICommandBus, IQueryBus (our own interfaces) |
+| **Shared.Write.Domain** | ❌ NEVER | ICommand, IQuery, ICommandBus, IQueryBus (our own interfaces) |
 | **Application** | ❌ NEVER | ICommandHandler, IQueryHandler implementations |
 | **Infrastructure** | ✅ YES | MediatR adapters, pipeline behaviors, DI registration |
 | **Api** | ✅ Acceptable | Composition root, uses ICommandBus (or ISender if not using the port) |

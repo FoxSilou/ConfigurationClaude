@@ -13,7 +13,12 @@
       "Bash(rm -f src/SharedKernel/Class1.cs)",
       "Bash(dotnet:*)",
       "Bash(mkdir -p tests/Backend.E2E.Tests)",
-      "Bash(rm -f tests/Backend.E2E.Tests/UnitTest1.cs)"
+      "Bash(rm -f tests/Backend.E2E.Tests/UnitTest1.cs)",
+      "Bash(sed:*)",
+      "Bash(sed -i 's/ImperiumRex\\\\.sln/<SolutionName>.sln/g' agents/scaffold.md skills/scaffold-back/SKILL.md skills/scaffold-architecture/SKILL.md)",
+      "Bash(sed -i 's/ImperiumRex\\\\.E2E\\\\.Tests/<SolutionName>.E2E.Tests/g' agents/scaffold.md skills/scaffold-architecture/SKILL.md)",
+      "Bash(sed -i 's/`ImperiumRex\\\\.sln`/`<SolutionName>.sln`/g' agents/scaffold.md skills/scaffold-back/SKILL.md)",
+      "Bash(sed -i 's/\\(ImperiumRex\\\\.sln\\)/\\(<SolutionName>.sln\\)/g' agents/scaffold.md)"
     ]
   }
 }

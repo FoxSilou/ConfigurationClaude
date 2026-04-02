@@ -25,7 +25,7 @@ Best for: high-throughput systems, multiple read models per stream, read models 
 ## Projection interface
 
 ```csharp
-// SharedKernel/Abstractions/IProjection.cs
+// Shared.Write.Domain/Abstractions/IProjection.cs
 public interface IProjection
 {
     /// <summary>

@@ -4,7 +4,7 @@ description: >
   Event Sourcing pattern for .NET/C# projects following Hexagonal Architecture, DDD, and strict CQRS.
   Covers: domain-pure event-sourced aggregates (no ES awareness in domain layer), custom SQL event store
   (SQL Server by default, PostgreSQL variant documented), snapshots, and read-side projections.
-  Integrates with existing SharedKernel abstractions (AggregateRoot, IDomainEvent, ICommand/IQuery buses, ITypedId).
+  Integrates with existing Shared.Write.Domain abstractions (AggregateRoot, IDomainEvent, ICommand/IQuery buses, ITypedId).
 
   Use this skill whenever the user mentions event sourcing, event store, event-sourced aggregates, projections
   from events, replaying events, aggregate reconstitution from events, snapshots, or asks to persist an aggregate
@@ -30,6 +30,7 @@ This skill follows the **State Rebuilder** pattern (also known as "external fold
 - `Reconstituer` keeps all its parameters — identical to the EF Core version.
 - A **StateRebuilder** (Infrastructure) replays events through a fold, then calls `Reconstituer` to produce the aggregate.
 - Swapping from EF Core to Event Sourcing is a pure DI registration change — domain and application layers are untouched.
+- Event Sourcing is the **default** persistence strategy for new bounded contexts.
 
 ## How this integrates with the existing architecture
 
@@ -43,10 +44,10 @@ The existing architecture already has strong foundations for Event Sourcing:
 - CQRS is already strict (separate Read/Write stacks) — projections are just a formalization of the Read side.
 
 The event sourcing mechanics live entirely in Infrastructure:
-1. An `IStateRebuilder<TAggregate, TId>` interface in `SharedKernel.Infrastructure`
+1. An `IStateRebuilder<TAggregate, TId>` interface in `Shared.Write.Infrastructure`
 2. One concrete `StateRebuilder` per event-sourced aggregate (Infrastructure, per BC)
-3. An `ITypedId<TPrimitive>` interface in SharedKernel — implemented by all Typed Ids, used for JSON serialization without reflection
-4. Shared infrastructure types (event store, serializer, converters) in `SharedKernel.Infrastructure`
+3. An `ITypedId<TPrimitive>` interface in `Shared.Write.Domain` — implemented by all Typed Ids, used for JSON serialization without reflection
+4. Shared infrastructure types (event store, serializer, converters) in `Shared.Write.Infrastructure`
 
 ## When to use Event Sourcing vs state-based persistence
 
@@ -92,59 +93,60 @@ Read `references/projections.md` for the read-side materialization including:
 
 ```
 src/
-├── SharedKernel/                                  ← Pure C#, zero dependencies
-│   ├── ITypedId.cs
-│   ├── Abstractions/
-│   │   ├── IEventStore.cs
-│   │   └── IProjection.cs
-│   └── Exceptions/
-│       └── DomainException.cs
-├── SharedKernel.Infrastructure/                   ← Technical, references SharedKernel
-│   ├── Exceptions/
-│   │   └── ConcurrencyException.cs
-│   ├── EventStore/
-│   │   └── IStateRebuilder.cs
-│   ├── Serialization/
-│   │   ├── EventSerializer.cs
-│   │   └── TypedIdConverterFactory.cs
-│   └── Persistence/                               ← No generic base — each repo is concrete
+├── Shared/
+│   ├── Write/
+│   │   ├── Shared.Write.Domain.csproj                 ← Pure C#, zero dependencies
+│   │   │   ├── ITypedId.cs
+│   │   │   ├── Abstractions/
+│   │   │   │   ├── IEventStore.cs
+│   │   │   │   └── IProjection.cs
+│   │   │   └── Exceptions/
+│   │   │       └── DomainException.cs
+│   │   └── Shared.Write.Infrastructure.csproj         ← Technical, references Shared.Write.Domain
+│   │       ├── Exceptions/
+│   │       │   └── ConcurrencyException.cs
+│   │       ├── EventStore/
+│   │       │   └── IStateRebuilder.cs
+│   │       └── Serialization/
+│   │           ├── EventSerializer.cs
+│   │           └── TypedIdConverterFactory.cs
+│   └── Read/                                           ← Created when needed
 └── <BoundedContext>/
     ├── Write/
-    │   ├── Domain/
+    │   ├── <BC>.Write.Domain.csproj
     │   │   ├── Aggregates/
-    │   │   │   └── Partie.cs                      ← Standard AggregateRoot<PartieId>
+    │   │   │   └── Partie.cs                           ← Standard AggregateRoot<PartieId>
     │   │   ├── Events/
-    │   │   │   ├── PartieCree.cs                   ← Same sealed record pattern as before
+    │   │   │   ├── PartieCree.cs
     │   │   │   ├── JoueurRejoint.cs
     │   │   │   └── PartieDemarree.cs
     │   │   ├── ValueObjects/
     │   │   └── Ports/
-    │   │       └── IPartieRepository.cs            ← Same interface as state-based
-    │   ├── Application/
-    │   │   ├── CreerPartie.cs                      ← Command + Handler, unchanged
+    │   │       └── IPartieRepository.cs                ← Same interface as state-based
+    │   ├── <BC>.Write.Application.csproj
+    │   │   ├── CreerPartie.cs                          ← Command + Handler, unchanged
     │   │   └── Behaviors/
-    │   └── Infrastructure/
+    │   └── <BC>.Write.Infrastructure.csproj
     │       ├── EventStore/
     │       │   ├── EventStoreDbContext.cs
     │       │   ├── Models/
     │       │   │   ├── StoredEvent.cs
     │       │   │   └── AggregateSnapshot.cs
     │       │   └── StateRebuilders/
-    │       │       └── PartieStateRebuilder.cs     ← Folds events → calls Reconstituer
+    │       │       └── PartieStateRebuilder.cs         ← Folds events → calls Reconstituer
     │       ├── Persistence/
     │       │   └── EventSourcedPartieRepository.cs
     │       └── Projections/
     │           ├── PartieProjection.cs
     │           └── ProjectionDispatcher.cs
     └── Read/
-        ├── Application/
+        ├── <BC>.Read.Application.csproj
         │   ├── ObtenirPartie.cs
         │   └── Ports/
-        ├── Infrastructure/
-        │   ├── ReadDbContext.cs
-        │   └── ReadModels/
-        │       └── PartieReadModel.cs
-        └── Api/
+        └── <BC>.Read.Infrastructure.csproj
+            ├── ReadDbContext.cs
+            └── ReadModels/
+                └── PartieReadModel.cs
 ```
 
 ## Key decisions and conventions

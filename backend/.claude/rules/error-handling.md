@@ -24,10 +24,10 @@ The project uses **two complementary approaches** for error handling:
 
 ## Domain Exceptions
 
-Domain exceptions inherit from `DomainException` (defined in SharedKernel):
+Domain exceptions inherit from `DomainException` (defined in Shared.Write.Domain):
 
 ```csharp
-// SharedKernel
+// Shared.Write.Domain
 public class DomainException : Exception
 {
     public DomainException(string message) : base(message) { }

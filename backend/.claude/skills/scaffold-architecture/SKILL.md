@@ -6,7 +6,7 @@ description: >
   dispatch architecture (ICommandBus -> MediatRCommandBus -> Handler),
   automatic handler registration via AddMessaging(), API endpoint conventions,
   DateTimeOffset + TimeProvider, ports with Value Objects, Reconstituer() pattern,
-  AggregateRoot<TId> base class.
+  AggregateRoot<TId> base class, Event Sourcing infrastructure (IStateRebuilder, EventSerializer).
   Use when scaffolding backend infrastructure or wiring vertical slices.
 user-invocable: false
 ---
@@ -17,22 +17,40 @@ These rules are NON-NEGOTIABLE when writing backend infrastructure code.
 
 ---
 
+## Solution & Project Structure
+
+The solution name is defined in `CLAUDE.md`. Projects are organized under `src/` with a `Shared/` folder for cross-cutting concerns and one folder per Bounded Context.
+
+**Critical**: projects (`.csproj` files) are placed **directly** under `Write/` or `Read/` — there are NO intermediate `Domain/`, `Application/`, or `Infrastructure/` subdirectories.
+
+```
+<SolutionName>.sln
+src/
+├── Shared/
+│   ├── Write/
+│   │   ├── Shared.Write.Domain.csproj              ← Pure C#, zero deps
+│   │   └── Shared.Write.Infrastructure.csproj      ← MediatR, ES infra
+│   └── Read/                                        ← Created when needed
+├── <BoundedContext>/
+│   ├── Write/
+│   │   ├── <BC>.Write.Domain.csproj
+│   │   ├── <BC>.Write.Application.csproj
+│   │   └── <BC>.Write.Infrastructure.csproj
+│   └── Read/
+│       ├── <BC>.Read.Application.csproj
+│       └── <BC>.Read.Infrastructure.csproj
+├── Api/
+│   └── Api.csproj
+tests/
+├── <BC>.Write.Application.UnitTests/
+└── <SolutionName>.E2E.Tests/
+```
+
+---
+
 ## CQRS — Separate Read / Write Stacks
 
 The project follows **strict CQRS**. Each bounded context has separate Read and Write stacks across all layers. See rule `cqrs.md`.
-
-```
-src/<BoundedContext>/
-├── Write/
-│   ├── Domain/       (Aggregates/, Entities/, ValueObjects/, Events/, Ports/)
-│   ├── Application/  (<CommandFiles>.cs flat, Behaviors/, Ports/)
-│   ├── Infrastructure/
-│   └── Api/
-└── Read/
-    ├── Application/  (<QueryFiles>.cs flat, Ports/)
-    ├── Infrastructure/
-    └── Api/
-```
 
 When scaffolding a BC, create BOTH stacks (even if Read side is empty initially).
 
@@ -42,11 +60,11 @@ When scaffolding a BC, create BOTH stacks (even if Read side is empty initially)
 
 MediatR lives **exclusively** in Infrastructure. See rule `mediatr.md`.
 
-- **`ICommand<T>`**, **`ICommandHandler<TCommand, TResult>`**, **`ICommand`**, **`ICommandHandler<TCommand>`** are generic interfaces defined in `SharedKernel/Abstractions/`. They have **zero dependency on MediatR**.
-- **`ICommandBus`** is defined in `SharedKernel/Abstractions/`. This is the dispatch abstraction that API endpoints inject. It has **zero dependency on MediatR**.
-- **`MediatRCommandBus`** (in `Infrastructure/Messaging/`) implements `ICommandBus` using MediatR's `ISender` internally.
-- **Wrapper types** (`CommandRequest<TCommand, TResult>`, `VoidCommandRequest<TCommand>`) in `Infrastructure/Messaging/` bridge our interfaces to MediatR's `IRequest`/`IRequestHandler`.
-- **Adapter handlers** (`CommandRequestHandler<TCommand, TResult>`, `VoidCommandRequestHandler<TCommand>`) in `Infrastructure/Messaging/` delegate from MediatR to our `ICommandHandler` implementations.
+- **`ICommand<T>`**, **`ICommandHandler<TCommand, TResult>`**, **`ICommand`**, **`ICommandHandler<TCommand>`** are generic interfaces defined in `Shared.Write.Domain/Abstractions/`. They have **zero dependency on MediatR**.
+- **`ICommandBus`** is defined in `Shared.Write.Domain/Abstractions/`. This is the dispatch abstraction that API endpoints inject. It has **zero dependency on MediatR**.
+- **`MediatRCommandBus`** (in `Shared.Write.Infrastructure/Messaging/`) implements `ICommandBus` using MediatR's `ISender` internally.
+- **Wrapper types** (`CommandRequest<TCommand, TResult>`, `VoidCommandRequest<TCommand>`) in `Shared.Write.Infrastructure/Messaging/` bridge our interfaces to MediatR's `IRequest`/`IRequestHandler`.
+- **Adapter handlers** (`CommandRequestHandler<TCommand, TResult>`, `VoidCommandRequestHandler<TCommand>`) in `Shared.Write.Infrastructure/Messaging/` delegate from MediatR to our `ICommandHandler` implementations.
 
 **If you see `using MediatR` in a file under Domain or Application — you are violating the rules. Stop and fix it.**
 
@@ -56,15 +74,15 @@ MediatR lives **exclusively** in Infrastructure. See rule `mediatr.md`.
 
 ```
 API Endpoint
-  │ injects ICommandBus (SharedKernel abstraction)
+  │ injects ICommandBus (Shared.Write.Domain abstraction)
   │
   ▼ commandBus.EnvoyerAsync<TCommand, TResult>(commande, ct)
   │
-MediatRCommandBus (Infrastructure)
+MediatRCommandBus (Shared.Write.Infrastructure)
   │ wraps into CommandRequest<TCommand, TResult> : IRequest<TResult>
   │ sends via ISender.Send (MediatR)
   │
-CommandRequestHandler<TCommand, TResult> (Infrastructure)
+CommandRequestHandler<TCommand, TResult> (Shared.Write.Infrastructure)
   │ unwraps, delegates to ICommandHandler<TCommand, TResult>
   │
 InscrireUtilisateur.Handler (Application)
@@ -75,7 +93,7 @@ InscrireUtilisateur.Handler (Application)
 
 ## Handler Registration — Automatic Assembly Scanning
 
-Handlers are **never registered manually** in Program.cs. Instead, the Infrastructure provides an extension method `AddMessaging(Assembly applicationAssembly)` that:
+Handlers are **never registered manually** in Program.cs. Instead, Shared.Write.Infrastructure provides an extension method `AddMessaging(Assembly applicationAssembly)` that:
 
 1. Calls `AddMediatR(cfg => ...)` — registers ISender, IMediator
 2. Scans the Application assembly for all `ICommandHandler<,>` and `ICommandHandler<>` implementations
@@ -132,3 +150,13 @@ The persistence reconstitution method is named `Reconstituer()` on ALL types: en
 ## AggregateRoot<TId> Base Class
 
 All aggregate roots inherit from `AggregateRoot<TId>`. See rule `aggregate.md`.
+
+---
+
+## Event Sourcing Infrastructure
+
+The shared ES infrastructure lives in `Shared.Write.Infrastructure` and `Shared.Write.Domain`. See skill `event-sourcing` for full details.
+
+- **Shared.Write.Domain**: `IEventStore`, `IProjection`, `Snapshot`, `ITypedId<T>`
+- **Shared.Write.Infrastructure**: `IStateRebuilder<TAggregate, TId>`, `EventSerializer`, `TypedIdConverterFactory`, `ConcurrencyException`
+- **Per-BC Infrastructure**: `EventStoreDbContext`, `StoredEvent`, `AggregateSnapshot`, `<Aggregate>StateRebuilder`, `EventSourced<Aggregate>Repository`, projections

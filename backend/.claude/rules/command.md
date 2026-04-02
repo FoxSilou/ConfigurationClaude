@@ -9,7 +9,7 @@ globs: ["**/Application/**/*.cs", "**/Write/**/*.cs"]
 
 A command and its handler are always in the **same file**, with the handler as a **nested class** inside the command.
 
-**⚠️ RÈGLE CRITIQUE**: `ICommand<T>` et `ICommandHandler<TCommand, TResult>` sont des **interfaces génériques définies dans SharedKernel**. Elles ne référencent **JAMAIS** MediatR. MediatR est un détail d'infrastructure — l'adaptateur MediatR dans Infrastructure fait le pont entre ces interfaces et `IRequest`/`IRequestHandler` de MediatR. Ni le Command, ni le Handler ne doivent avoir de `using MediatR`.
+**⚠️ RÈGLE CRITIQUE**: `ICommand<T>` et `ICommandHandler<TCommand, TResult>` sont des **interfaces génériques définies dans Shared.Write.Domain**. Elles ne référencent **JAMAIS** MediatR. MediatR est un détail d'infrastructure — l'adaptateur MediatR dans Infrastructure fait le pont entre ces interfaces et `IRequest`/`IRequestHandler` de MediatR. Ni le Command, ni le Handler ne doivent avoir de `using MediatR`.
 
 ```csharp
 // ⚠️ NO `using MediatR` here — ICommand/ICommandHandler are OUR interfaces
@@ -37,7 +37,7 @@ public sealed record <CommandName>(<Parameters>) : ICommand<<ReturnType>>
 - The command parameter is named `commande` in `HandleAsync`.
 - The handler never contains domain logic — it orchestrates only.
 - Always reconstruct Value Objects and typed Ids from primitives inside the handler before passing them to the domain.
-- Commands live directly in `Write/Application/` (flat, no `Commands/` subfolder).
+- Commands live directly in `the Write Application project` (flat, no `Commands/` subfolder).
 - **⚠️ Aucune référence à MediatR** dans ce fichier. `ICommand<T>` et `ICommandHandler<TCommand, TResult>` sont nos propres interfaces.
 
 ## Example

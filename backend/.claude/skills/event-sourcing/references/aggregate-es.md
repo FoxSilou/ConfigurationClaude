@@ -167,7 +167,7 @@ The state record is a throwaway accumulator — it lives as a private nested cla
 ## IStateRebuilder interface
 
 ```csharp
-// SharedKernel.Infrastructure/EventStore/IStateRebuilder.cs
+// Shared.Write.Infrastructure/EventStore/IStateRebuilder.cs
 public interface IStateRebuilder<TAggregate, TId>
     where TAggregate : AggregateRoot<TId>
     where TId : notnull
