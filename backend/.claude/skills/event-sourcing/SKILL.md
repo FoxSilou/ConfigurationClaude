@@ -1,0 +1,164 @@
+---
+name: event-sourcing
+description: >
+  Event Sourcing pattern for .NET/C# projects following Hexagonal Architecture, DDD, and strict CQRS.
+  Covers: domain-pure event-sourced aggregates (no ES awareness in domain layer), custom SQL event store
+  (SQL Server by default, PostgreSQL variant documented), snapshots, and read-side projections.
+  Integrates with existing SharedKernel abstractions (AggregateRoot, IDomainEvent, ICommand/IQuery buses, ITypedId).
+
+  Use this skill whenever the user mentions event sourcing, event store, event-sourced aggregates, projections
+  from events, replaying events, aggregate reconstitution from events, snapshots, or asks to persist an aggregate
+  as a stream of events instead of state. Also trigger when the user wants to convert an existing state-based
+  aggregate to event sourcing, or when scaffolding a new bounded context that should use event sourcing.
+---
+
+# Event Sourcing Skill
+
+## Philosophy
+
+Event Sourcing stores **what happened** rather than **what the current state is**. Each state change is captured as an immutable domain event appended to a stream. The aggregate's current state is rebuilt by replaying its events.
+
+This approach gives you a complete audit trail, enables temporal queries, simplifies debugging (you can see exactly how the state was built), and naturally fits with CQRS — events on the write side feed projections on the read side.
+
+## Design principle: the domain does not know it is event-sourced
+
+How an aggregate is persisted (relational tables, document store, event stream) is an **infrastructure decision**, not a domain decision. The domain raises domain events because they are meaningful business facts — not because they serve as a persistence mechanism.
+
+This skill follows the **State Rebuilder** pattern (also known as "external fold"):
+- The aggregate uses the standard `AggregateRoot<TId>` base class — no `EventSourcedAggregate`, no `Apply`/`When`.
+- Business methods mutate state directly AND raise domain events, exactly as in state-based aggregates.
+- `Reconstituer` keeps all its parameters — identical to the EF Core version.
+- A **StateRebuilder** (Infrastructure) replays events through a fold, then calls `Reconstituer` to produce the aggregate.
+- Swapping from EF Core to Event Sourcing is a pure DI registration change — domain and application layers are untouched.
+
+## How this integrates with the existing architecture
+
+The existing architecture already has strong foundations for Event Sourcing:
+
+- `AggregateRoot<TId>` collects domain events via `RaiseDomainEvent()` — in ES, these same events become the source of truth for persistence.
+- `IDomainEvent` with `OccurredOn` is the contract every event implements — no changes needed.
+- Domain events are `sealed record` types — immutable by design, perfect for an append-only store.
+- `Reconstituer` is the persistence factory — in ES, the StateRebuilder calls it with the replayed state.
+- The repository interface (`IPartieRepository`) stays identical — only the Infrastructure adapter changes from `EfCorePartieRepository` to `EventSourcedPartieRepository`.
+- CQRS is already strict (separate Read/Write stacks) — projections are just a formalization of the Read side.
+
+The event sourcing mechanics live entirely in Infrastructure:
+1. An `IStateRebuilder<TAggregate, TId>` interface in `SharedKernel.Infrastructure`
+2. One concrete `StateRebuilder` per event-sourced aggregate (Infrastructure, per BC)
+3. An `ITypedId<TPrimitive>` interface in SharedKernel — implemented by all Typed Ids, used for JSON serialization without reflection
+4. Shared infrastructure types (event store, serializer, converters) in `SharedKernel.Infrastructure`
+
+## When to use Event Sourcing vs state-based persistence
+
+Event sourcing is not the default — it is a deliberate choice per bounded context.
+
+**Good fit**: audit requirements, complex state transitions, temporal queries needed, collaborative domains with conflict resolution, domains where "how we got here" matters as much as "where we are".
+
+**Poor fit**: simple CRUD, mostly static reference data, aggregates with very large state and few events, reporting-heavy contexts where the read model is the primary concern.
+
+A single solution can mix both approaches — some BCs event-sourced, others state-based. The repository interface abstraction makes this transparent to the Application layer.
+
+## Aggregate pattern for Event Sourcing
+
+Read `references/aggregate-es.md` for the complete pattern including:
+- The domain-pure aggregate (unchanged from state-based)
+- The `StateRebuilder` pattern (Infrastructure fold that calls `Reconstituer`)
+- Event-sourced repository with version tracking (without polluting the aggregate)
+- Snapshot support via `Reconstituer` parameters
+- Trade-offs vs the Apply/When approach
+- Round-trip testing strategy
+- Migration path from state-based to event-sourced (domain untouched)
+
+## Custom SQL Event Store
+
+Read `references/event-store-custom.md` for the persistence layer including:
+- Database schema — **SQL Server by default**, PostgreSQL variant documented where syntax differs
+- `IEventStore` port and SQL implementation
+- Optimistic concurrency via expected version (managed by repository, not aggregate)
+- Snapshot strategy and implementation
+- Serialization approach (System.Text.Json with `ITypedId` converters)
+- EF Core integration for the event store tables
+
+## Projections and Read Models
+
+Read `references/projections.md` for the read-side materialization including:
+- Projection pattern — event handlers that build read models
+- Inline projections (synchronous, same transaction) vs async projections
+- Projection rebuilding strategy
+- Checkpoint tracking for async projections
+- Integration with the existing Read stack (ReadDbContext, DTOs, query handlers)
+
+## Directory structure for an event-sourced bounded context
+
+```
+src/
+├── SharedKernel/                                  ← Pure C#, zero dependencies
+│   ├── ITypedId.cs
+│   ├── Abstractions/
+│   │   ├── IEventStore.cs
+│   │   └── IProjection.cs
+│   └── Exceptions/
+│       └── DomainException.cs
+├── SharedKernel.Infrastructure/                   ← Technical, references SharedKernel
+│   ├── Exceptions/
+│   │   └── ConcurrencyException.cs
+│   ├── EventStore/
+│   │   └── IStateRebuilder.cs
+│   ├── Serialization/
+│   │   ├── EventSerializer.cs
+│   │   └── TypedIdConverterFactory.cs
+│   └── Persistence/                               ← No generic base — each repo is concrete
+└── <BoundedContext>/
+    ├── Write/
+    │   ├── Domain/
+    │   │   ├── Aggregates/
+    │   │   │   └── Partie.cs                      ← Standard AggregateRoot<PartieId>
+    │   │   ├── Events/
+    │   │   │   ├── PartieCree.cs                   ← Same sealed record pattern as before
+    │   │   │   ├── JoueurRejoint.cs
+    │   │   │   └── PartieDemarree.cs
+    │   │   ├── ValueObjects/
+    │   │   └── Ports/
+    │   │       └── IPartieRepository.cs            ← Same interface as state-based
+    │   ├── Application/
+    │   │   ├── CreerPartie.cs                      ← Command + Handler, unchanged
+    │   │   └── Behaviors/
+    │   └── Infrastructure/
+    │       ├── EventStore/
+    │       │   ├── EventStoreDbContext.cs
+    │       │   ├── Models/
+    │       │   │   ├── StoredEvent.cs
+    │       │   │   └── AggregateSnapshot.cs
+    │       │   └── StateRebuilders/
+    │       │       └── PartieStateRebuilder.cs     ← Folds events → calls Reconstituer
+    │       ├── Persistence/
+    │       │   └── EventSourcedPartieRepository.cs
+    │       └── Projections/
+    │           ├── PartieProjection.cs
+    │           └── ProjectionDispatcher.cs
+    └── Read/
+        ├── Application/
+        │   ├── ObtenirPartie.cs
+        │   └── Ports/
+        ├── Infrastructure/
+        │   ├── ReadDbContext.cs
+        │   └── ReadModels/
+        │       └── PartieReadModel.cs
+        └── Api/
+```
+
+## Key decisions and conventions
+
+**Naming** follows existing conventions — domain code in French, infrastructure in English:
+- Event store classes: `SqlEventStore`, `EventSourcedPartieRepository`, `StoredEvent`
+- State rebuilders: `PartieStateRebuilder` (Infrastructure, English)
+- Projections: `PartieProjection`, `ProjectionDispatcher`
+- Domain events: French past participle as always (`PartieCree`, `JoueurRejoint`)
+
+**Event versioning**: events are immutable once published. To evolve an event's shape, create a new event type (e.g., `PartieCreeV2`) and write an upcaster that transforms old events when loading. Never modify an existing event record.
+
+**Concurrency**: optimistic concurrency using a version number on the aggregate stream. The version is tracked by the repository (Infrastructure bookkeeping), not by the aggregate. If two commands try to append to the same stream at the same position, the second one fails.
+
+**Snapshots**: optional optimization. A snapshot is simply the parameters of `Reconstituer`, serialized as JSON. When an aggregate's event count exceeds a configurable threshold, a snapshot is taken. On next load, `Reconstituer` is called from the snapshot, then only delta events are replayed through the rebuilder.
+
+**Round-trip testing**: the key test for each StateRebuilder — create an aggregate via business methods, capture its events, rebuild from those events, assert the same observable state. This catches synchronization drift between business methods and the rebuilder.

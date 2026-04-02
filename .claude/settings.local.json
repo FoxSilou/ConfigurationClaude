@@ -8,7 +8,12 @@
       "Bash(cd *)",
       "Bash(echo *)",
       "Bash(where *)",
-      "Bash(rm gen_chaotic.py)"
+      "Bash(rm gen_chaotic.py)",
+      "Bash(mkdir -p src/SharedKernel)",
+      "Bash(rm -f src/SharedKernel/Class1.cs)",
+      "Bash(dotnet:*)",
+      "Bash(mkdir -p tests/Backend.E2E.Tests)",
+      "Bash(rm -f tests/Backend.E2E.Tests/UnitTest1.cs)"
     ]
   }
 }

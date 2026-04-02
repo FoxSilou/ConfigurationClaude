@@ -53,6 +53,7 @@ Dependencies flow **inward only**: Api → Application → Domain. Infrastructur
 → TDD discipline: see skill `tdd-workflow`
 → Unit testing conventions: see skill `unit-testing`
 → E2E testing conventions: see skill `e2e-testing`
+→ Event Sourcing pattern (domain-pure aggregates, custom SQL event store, projections): see skill `event-sourcing`
 
 ## Slash Commands
 

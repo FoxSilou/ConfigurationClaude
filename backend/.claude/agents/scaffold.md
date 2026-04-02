@@ -12,6 +12,7 @@ skills:
   - e2e-testing
   - backend-conventions
   - scaffold-architecture
+  - event-sourcing
 maxTurns: 150
 disallowedTools: WebFetch, WebSearch
 memory: project
@@ -426,6 +427,19 @@ Use this mode when a bounded context name is provided.
 
 **Prerequisite**: General scaffolding (Mode 1) must be completed. If SharedKernel, messaging infrastructure, or the API shell do not exist, inform the user and suggest running general scaffolding first.
 
+### Event Sourcing Support
+
+If the user specifies that the bounded context uses **event sourcing** (e.g., `@scaffold Parties --event-sourcing` or mentions event sourcing in their prompt), consult the `event-sourcing` skill for the full pattern. Key differences from state-based scaffolding:
+
+- **No EF Core persistence models** for the aggregate — events are the persistence mechanism.
+- **SharedKernel additions** (if not already present): `IEventStore`, `IProjection`, `ITypedId<TPrimitive>`.
+- **SharedKernel.Infrastructure additions** (if not already present): `IStateRebuilder<TAggregate, TId>`, `EventSerializer`, `TypedIdConverterFactory`, `ConcurrencyException`.
+- **BC Infrastructure** uses `EventSourcedPartieRepository` instead of `EfCorePartieRepository`, plus `EventStoreDbContext`, `StoredEvent` model, `AggregateSnapshot` model, and a `PartieStateRebuilder`.
+- **Projections**: `PartieProjection` and `ProjectionDispatcher` for read-side materialization.
+- The **domain layer is identical** to state-based — the aggregate uses `AggregateRoot<TId>` and `Reconstituer` as usual.
+
+The diagnostic (Phase 0) must detect whether the BC targets event sourcing and adjust the checklist accordingly.
+
 ## Workflow — Bounded Context
 
 ```
@@ -537,9 +551,23 @@ If the bounded context involves user authentication, follow the `identity-framew
 - Create `IdentityPasswordHasher : IPasswordHasher` returning `MotDePasseHash` (not `string`)
 - `AppDbContext` must inherit from `IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>`
 
-#### 2. Persistence Models
+#### 2. Event Sourcing Infrastructure (if event-sourced bounded context)
 
-For each aggregate that has a repository interface but no persistence model and is **not** covered by Identity:
+If the BC uses event sourcing, follow the `event-sourcing` skill instead of steps 3–5 below for event-sourced aggregates:
+
+- **SharedKernel** (if not already present): add `ITypedId<TPrimitive>`, `IEventStore`, `IProjection`
+- **SharedKernel.Infrastructure** (if not already present): add `IStateRebuilder<TAggregate, TId>`, `EventSerializer`, `TypedIdConverterFactory`, `ConcurrencyException`
+- **BC Infrastructure/EventStore/**: create `EventStoreDbContext`, `StoredEvent` model, `AggregateSnapshot` model
+- **BC Infrastructure/EventStore/StateRebuilders/**: create `<Aggregate>StateRebuilder` — folds events, calls `Reconstituer`
+- **BC Infrastructure/Persistence/**: create `EventSourced<Aggregate>Repository` (NOT `EfCore<Aggregate>Repository`)
+- **BC Infrastructure/Projections/**: create `<Aggregate>Projection` and `ProjectionDispatcher`
+- **Read side**: create `ReadDbContext` and read models for projections
+
+State-based aggregates within the same BC still follow steps 3–5 below.
+
+#### 3. Persistence Models (state-based aggregates only)
+
+For each aggregate that has a repository interface but no persistence model and is **not** covered by Identity or Event Sourcing:
 
 - Create `<BC>/Write/Infrastructure/Persistence/Models/<Aggregate>Model.cs`
 - Follow the `efcore.md` rule: `internal sealed` class with EF Core attributes

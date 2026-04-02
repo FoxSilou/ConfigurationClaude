@@ -13,6 +13,7 @@ skills:
   - tdd-workflow
   - e2e-testing
   - backend-conventions
+  - event-sourcing
 memory: project
 maxTurns: 200
 ---
@@ -174,6 +175,11 @@ No user gates during TDD. Run the full cycle (RED → GREEN → REFACTOR) for ev
 - Implement **one Command or Query at a time**. Do not start a second use case before the first is complete.
 - Create ports (interfaces) before their implementations — let the tests drive the interface design.
 - `InMemory` adapters created for tests live in the test project, not in Infrastructure.
+- **Event Sourcing**: if the bounded context uses event sourcing (detected from existing infrastructure or stated by the user), consult the `event-sourcing` skill. Key implications for TDD:
+  - The **domain aggregate is unchanged** — it uses `AggregateRoot<TId>`, `RaiseDomainEvent()`, and `Reconstituer` as usual. No `Apply`/`When` methods.
+  - Include **round-trip tests** for each `StateRebuilder`: create an aggregate via business methods, capture its events, rebuild from those events via the rebuilder, assert the same observable state.
+  - The `StateRebuilder` is Infrastructure code — test it with integration-style tests (it calls `Reconstituer`).
+  - Domain event design must account for event immutability — events are the source of truth for persistence.
 
 ### Gate — End of PHASE 1
 
