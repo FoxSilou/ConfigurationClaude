@@ -89,9 +89,15 @@ Understand the full scope of the feature before writing a single line of code or
    - The **ports** required (repositories, external services)
    - The **API endpoints** to expose (if applicable)
    - The **constraints and invariants** to enforce
-3. Produce an **ordered test list** following TPP order (see `tdd-workflow` skill — Phase 0).
-4. Identify the **critical paths** for E2E coverage (propose, do not decide).
-5. Write the analysis document.
+3. **Identify the E2E verification strategy** for each critical path:
+   - Each E2E test follows the pattern: **POST (command) → GET (query) to verify the result**.
+   - Determine which **Query + read model + GET endpoint** is needed to verify the outcome of each Command.
+   - If the requirement defines a Query explicitly → use it.
+   - If **no Query is defined in the specs** → flag it explicitly in the analysis document under `## E2E Verification — Missing Read Side` and propose a minimal read model (DTO name + fields). This will be confirmed with the user at the Phase 0 gate.
+4. Produce an **ordered test list** following TPP order (see `tdd-workflow` skill — Phase 0). **Each item must use the exact `<Command>Doit.<MethodName>` format** — these names will be used verbatim as class and method names in the test code.
+5. **Only list tests for Commands** — Value Objects, Aggregates, and Entities are tested implicitly through the Command handler. Never create separate tests for them.
+6. Identify the **critical paths** for E2E coverage (propose, do not decide).
+7. Write the analysis document.
 
 ### Analysis Document
 
@@ -120,13 +126,26 @@ Save to: `docs/<feature-name>.md`
 - <list of business rules to enforce>
 
 ## Test List (TPP order)
-1. [<transformation>] <test name>
-2. [<transformation>] <test name>
+1. [<transformation>] <Command>Doit.<MethodName>
+2. [<transformation>] <Command>Doit.<MethodName>
 ...
 
-## Proposed Critical Paths for E2E
-- <path 1>
-- <path 2>
+## E2E Verification Strategy
+
+Each E2E test follows: POST (command) → GET (query) → assert on read model.
+
+| Critical Path | POST endpoint | GET endpoint | Read model (DTO) | Status |
+|---|---|---|---|---|
+| <path 1> | POST /api/... | GET /api/... | <Dto> | ✅ defined / ⚠️ missing |
+| <path 2> | POST /api/... | GET /api/... | <Dto> | ✅ defined / ⚠️ missing |
+
+### Missing Read Side (if any)
+> If a GET endpoint or Query is not defined in the specs, describe the proposed
+> minimal read model here. The user will confirm at the Phase 0 gate.
+>
+> - **Query**: `<QueryName>(<params>) → <DtoName>`
+> - **DTO**: `<DtoName>(fields...)`
+> - **GET endpoint**: `GET /api/...`
 ```
 
 ### Gate — End of PHASE 0
@@ -137,6 +156,8 @@ Present a summary to the user:
 - Document saved at `docs/<feature-name>.md`
 - Number of tests planned
 - Proposed critical paths for E2E
+- **E2E verification strategy** — for each critical path, state the POST and GET endpoints
+- **⚠️ If any read side is missing** (no Query, no read model, no GET endpoint defined in the specs): present the proposed minimal read model and explicitly ask the user to confirm or adjust it before proceeding
 
 Ask:
 > *"Analysis complete. Please review `docs/<feature-name>.md`. Confirm to start TDD, or provide feedback to adjust the analysis."*
@@ -174,7 +195,7 @@ No user gates during TDD. Run the full cycle (RED → GREEN → REFACTOR) for ev
 
 - Implement **one Command or Query at a time**. Do not start a second use case before the first is complete.
 - Create ports (interfaces) before their implementations — let the tests drive the interface design.
-- `InMemory` adapters created for tests live in the test project, not in Infrastructure.
+- `InMemory` adapters and Fakes created for tests live in the `Fakes/` directory of the test project (`<BC>.UnitTests`), not in Infrastructure.
 - **Event Sourcing**: if the bounded context uses event sourcing (detected from existing infrastructure or stated by the user), consult the `event-sourcing` skill. Key implications for TDD:
   - The **domain aggregate is unchanged** — it uses `AggregateRoot<TId>`, `RaiseDomainEvent()`, and `Reconstituer` as usual. No `Apply`/`When` methods.
   - Include **round-trip tests** for each `StateRebuilder`: create an aggregate via business methods, capture its events, rebuild from those events via the rebuilder, assert the same observable state.
@@ -187,13 +208,14 @@ No user gates during TDD. Run the full cycle (RED → GREEN → REFACTOR) for ev
 
 Report:
 - All unit tests passing ✅
-- Summary of what was implemented (Commands, Queries, domain concepts, ports)
-- Proposed critical paths for E2E (from the analysis document)
+- Summary of what was implemented (Commands, domain concepts, ports)
+- E2E verification strategy (from the analysis document): POST endpoint → GET endpoint for each critical path
+- **Reminder**: the Read side (Query, DTO, GET endpoint) will be created during Phase 2 if it does not exist yet
 
 Ask:
-> *"Tous les tests unitaires passent. Voici les chemins critiques proposés pour la couverture E2E : [liste]. Confirmez ou ajustez la liste avant de passer à la Phase 2 (E2E)."*
+> *"Tous les tests unitaires passent. Voici les chemins critiques E2E : [table POST → GET pour chaque chemin]. Confirmez ou ajustez avant de passer à la Phase 2 (E2E)."*
 
-Wait for explicit user confirmation and final critical path list before proceeding to PHASE 2. **E2E is not optional — never propose to skip it.**
+Wait for explicit user confirmation and final critical path list before proceeding to PHASE 2. **E2E is not optional — never propose to skip it. Never declare the feature done after Phase 1.**
 
 ---
 
@@ -210,29 +232,56 @@ Use only the critical paths confirmed by the user in the PHASE 1 gate.
 Before writing any E2E test, verify that the technical infrastructure exists:
 
 - [ ] E2E test project with `WebApplicationFactory` and test database
-- [ ] API endpoints wired for the commands/queries under test
+- [ ] **POST endpoint** wired for the command under test (or ready to create)
+- [ ] **GET endpoint** wired for the query that verifies the result (or ready to create)
 - [ ] DI container registering all ports and repository implementations
 - [ ] Error middleware in place
 
-**If any of these are missing → stop and recommend running the `scaffold` agent first.** Do not attempt to build infrastructure inline during E2E — it is the `scaffold` agent's responsibility.
+**If the BC infrastructure is missing (no persistence, no DI) → stop and recommend running the `scaffold` agent first.** Do not attempt to build BC infrastructure inline during E2E — it is the `scaffold` agent's responsibility.
 
 Ask:
 > *"L'infrastructure E2E n'est pas en place (il manque : [liste]). Je recommande de lancer l'agent `scaffold` avant de continuer. Souhaitez-vous le faire maintenant ?"*
 
+### E2E Test Pattern: POST → GET
+
+Every E2E test follows this pattern:
+
+1. **POST** — send the command via HTTP (e.g., `POST /api/identite/utilisateurs`)
+2. **Assert status** — verify the response (e.g., `201 Created`)
+3. **GET** — query the result via HTTP (e.g., `GET /api/identite/utilisateurs/{id}`)
+4. **Assert read model** — verify the DTO returned by the GET matches expectations
+
+This pattern naturally **drives the creation of the Read side**:
+- The Query (in `<BC>.Read.Application`)
+- The read model DTO
+- The GET endpoint
+- The read infrastructure (ReadDbContext, projections if ES)
+
+If the Read side was flagged as missing in Phase 0 and confirmed by the user, create it now as part of making the E2E test pass.
+
 ### Steps
 
 1. For each confirmed critical path:
-   - Write the E2E test (Arrange / Act / Assert via HTTP)
-   - Run it — it must **fail first** (the endpoint may not exist yet)
-   - Implement the minimum API layer (controller/minimal API endpoint) to make it pass
-   - Run all tests (unit + E2E) — all must be green
-2. After all E2E tests pass, report completion.
+   a. Write the E2E test following the POST → GET pattern (see `e2e-testing` skill)
+   b. Run it — it must **fail first** (endpoints may not exist yet)
+   c. Implement the minimum to make it pass:
+      - **POST endpoint** (command dispatch via `ICommandBus`)
+      - **GET endpoint** (query dispatch via `IQueryBus`)
+      - **Query + handler** (in Read Application, if not existing)
+      - **Read model DTO** (if not existing)
+      - **DI wiring** (`AddWriteMessaging`, `AddReadMessaging`, port registrations)
+   d. Run all tests (unit + E2E) — all must be green
+2. For error critical paths (e.g., duplicate email → 400):
+   - POST with invalid/conflicting data → assert error status code + Problem Details body
+   - No GET needed for error paths
+3. After all E2E tests pass, report completion.
 
 ### Rules
 
-- E2E tests go in `tests/E2E.Tests/`.
+- E2E tests go in `tests/<SolutionName>.E2E.Tests/`.
 - Never modify unit tests during this phase.
-- The API layer orchestrates only — no business logic in controllers.
+- The API layer orchestrates only — no business logic in endpoints.
+- **POST then GET** — never assert on database state directly. Always verify through the HTTP API.
 
 ### Done — Feature Complete
 
@@ -240,9 +289,11 @@ A feature is only considered **DONE** when all unit tests AND all E2E tests pass
 
 Report:
 - All tests passing (unit + E2E) ✅
-- List of files created or modified
-- Infrastructure wired (adapters, DI, endpoints)
-- Suggest next steps if applicable (e.g., integration tests for adapters)
+- **Write side**: Commands, domain concepts, ports created
+- **Read side**: Queries, DTOs, GET endpoints created (if driven by E2E)
+- **API endpoints**: POST + GET with their paths
+- **Infrastructure wired**: adapters, DI, projections
+- List of all files created or modified
 
 
 ---

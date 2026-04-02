@@ -68,18 +68,22 @@ Before writing any test, produce an **ordered test list** for the requirement.
 - Order them by **TPP priority** — start with the simplest transformation possible.
 - Start with the degenerate/empty case, then the simplest happy path, then edge cases and failures.
 - Label each test with its expected TPP transformation (see TPP table below).
+- **Each item in the list IS the test class and method name** — use the `<Command>Doit.<MethodName>` format from the `unit-testing` skill. The name in the plan must match the code exactly. No renaming later.
+- **Unit tests only test Commands** — never list tests for Value Objects, Aggregates, or Entities in isolation. Those are tested implicitly through the Command handler.
 - This list is the plan. Do not skip ahead. Do not reorder on the fly without justification.
 
 ### Output format
+
+Test list items read as `<Command>Doit.<MethodName>`:
 
 ```
 Requirement: CreerPartie — créer une nouvelle partie de jeu
 
 Test list (TPP order):
-1. [nil→constant]    CreerPartie_doit_retourner_un_id_quand_les_donnees_sont_valides
-2. [constant→scalar] CreerPartie_doit_persister_la_partie_avec_le_nom_fourni
-3. [conditional]     CreerPartie_doit_echouer_quand_le_nom_est_vide
-4. [conditional]     CreerPartie_doit_echouer_quand_le_nom_est_trop_long
+1. [nil→constant]    CreerPartieDoit.Retourner_un_id_quand_les_donnees_sont_valides
+2. [constant→scalar] CreerPartieDoit.Persister_la_partie_avec_le_nom_fourni
+3. [conditional]     CreerPartieDoit.Echouer_quand_le_nom_est_vide
+4. [conditional]     CreerPartieDoit.Echouer_quand_le_nom_est_trop_long
 ```
 
 ---
@@ -112,7 +116,7 @@ Apply **one transformation per test**. If making a test pass requires two transf
 ## Phase 1 — RED (user gate)
 
 1. Pick the next test from the ordered list.
-2. Write the test using the naming and structure from the `unit-testing` skill.
+2. Write the test using **exactly the class and method name from the list** (see `unit-testing` skill for conventions: class = `<Command>Doit`, method = infinitive verb + context).
 3. Write **only** the test — no production code yet.
 4. If the test references classes or methods that do not exist, create the **minimum stubs** needed for the code to compile (empty classes, methods that throw `NotImplementedException`). Nothing more.
 5. Run the tests. The new test **must fail** with a meaningful error (assertion failure, not compilation error).
@@ -317,6 +321,8 @@ Ask:
 | **V5 — TPP skip** | Using a complex transformation when a simpler one would work |
 | **V6 — Gate bypass** | (STEP-BY-STEP only) Proceeding to GREEN without user confirmation of the test, or to REFACTOR without user confirmation of the implementation, or refactoring without user-selected actions |
 | **V7 — Skipped analysis** | Starting RED without an ordered test list |
+| **V8 — Naming mismatch** | Test class/method name in code differs from the name in the test list, or does not follow `<Command>Doit` / infinitive verb convention from `unit-testing` skill |
+| **V9 — Isolated domain test** | Writing a unit test for a Value Object, Aggregate, or Entity in isolation instead of testing through the Command handler |
 
 When a violation is detected, stop, name it, and explain the corrective action before continuing.
 

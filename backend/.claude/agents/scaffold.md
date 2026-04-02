@@ -2,7 +2,8 @@
 name: scaffold
 description: >
   Infrastructure scaffolding specialist for vertical slice wiring.
-  Supports two modes: (1) GENERAL scaffolding — Shared.Write.Domain, Shared.Write.Infrastructure (messaging + ES), API shell, E2E harness;
+  Supports two modes: (1) GENERAL scaffolding — Shared.Write.Domain, Shared.Write.Infrastructure (command messaging + ES),
+  Shared.Read.Infrastructure (query messaging), API shell, E2E harness;
   (2) BOUNDED CONTEXT scaffolding — persistence, port implementations, API endpoints, E2E fakes
   for a specific BC. Produces only plumbing code — never business logic.
 tools: Read, Write, Edit, Bash, Glob, Grep
@@ -24,7 +25,7 @@ memory: project
 ## Invocation
 
 ```
-@scaffold                        (general: Shared.Write.Domain, Shared.Write.Infrastructure, API shell, E2E harness)
+@scaffold                        (general: Shared.Write.Domain, Shared.Write.Infrastructure, Shared.Read.Infrastructure, API shell, E2E harness)
 @scaffold <bounded context name> (BC-specific: persistence, API endpoints, DI, E2E fakes)
 ```
 
@@ -46,7 +47,8 @@ This agent operates in **two distinct modes** depending on user input:
 
 Scaffolds the **shared foundation** that all bounded contexts depend on:
 - Shared.Write.Domain (base types, CQRS abstractions, ES abstractions, exceptions)
-- Shared.Write.Infrastructure (MediatR adapter behind ICommandBus, ES infrastructure)
+- Shared.Write.Infrastructure (MediatR command adapters behind ICommandBus, ES infrastructure)
+- Shared.Read.Infrastructure (MediatR query adapters behind IQueryBus)
 - API composition root (Program.cs, error middleware, health endpoint)
 - E2E test harness (project, WebApplicationFactory, smoke test)
 - Solution file and project structure
@@ -74,7 +76,7 @@ All architecture rules are defined in skill `scaffold-architecture` (preloaded).
 - **Strict CQRS** — Read/Write stacks separated. Create BOTH when scaffolding a BC.
 - **MediatR confined to Infrastructure** — Domain and Application use our own `ICommand<T>` / `ICommandBus` from Shared.Write.Domain.
 - **Dispatch**: API -> `ICommandBus` -> `MediatRCommandBus` -> adapter -> `ICommandHandler`.
-- **`AddMessaging(assembly)`** for automatic handler registration — never register handlers manually.
+- **`AddWriteMessaging(assembly)` / `AddReadMessaging(assembly)`** for automatic handler registration — never register handlers manually.
 - **API endpoints inject `ICommandBus`** — never handlers directly.
 - **DateTimeOffset + TimeProvider** everywhere — no DateTime, no IHorloge.
 - **Ports use Value Objects** — not primitives.
@@ -112,7 +114,9 @@ PHASE 0 — DIAGNOSTIC
   ↓ (user gate)
 PHASE 1 — SHARED WRITE DOMAIN
   ↓ (user gate)
-PHASE 2 — SHARED WRITE INFRASTRUCTURE (messaging + ES infra)
+PHASE 2 — SHARED WRITE INFRASTRUCTURE (command messaging + ES infra)
+  ↓ (user gate)
+PHASE 2b — SHARED READ INFRASTRUCTURE (query messaging)
   ↓ (user gate)
 PHASE 3 — API SHELL (composition root, error middleware, health)
   ↓ (user gate)
@@ -146,8 +150,10 @@ Inventory what exists and what is missing in the shared foundation.
 | **ES abstractions** | IEventStore, IProjection, Snapshot | `src/Shared/Write/Abstractions/` |
 | **Shared exceptions** | DomainException, NotFoundException | `src/Shared/Write/Exceptions/` |
 | **Shared.Write.Infrastructure project** | Does `Shared.Write.Infrastructure.csproj` exist? | `src/Shared/Write/` |
-| **Messaging infrastructure** | MediatRCommandBus, wrappers, adapters, AddMessaging() | `src/Shared/Write/Messaging/` (in Shared.Write.Infrastructure) |
+| **Command messaging infrastructure** | MediatRCommandBus, command wrappers, adapters, AddWriteMessaging() | `src/Shared/Write/Messaging/` (in Shared.Write.Infrastructure) |
 | **ES infrastructure** | IStateRebuilder, EventSerializer, TypedIdConverterFactory, ConcurrencyException | `src/Shared/Write/` (in Shared.Write.Infrastructure) |
+| **Shared.Read.Infrastructure project** | Does `Shared.Read.Infrastructure.csproj` exist? | `src/Shared/Read/` |
+| **Query messaging infrastructure** | MediatRQueryBus, query wrappers, adapters, AddReadMessaging() | `src/Shared/Read/Messaging/` (in Shared.Read.Infrastructure) |
 | **API project** | Does the Api `.csproj` exist? | `src/Api/` |
 | **Program.cs** | Composition root with minimal setup | `src/Api/Program.cs` |
 | **Error middleware** | Global exception handler (Problem Details RFC 7807) | `src/Api/` |
@@ -168,6 +174,7 @@ Save to: `docs/scaffold-general-<date>.md`
 - Solution file (<SolutionName>.sln): ✅ / ❌
 - Shared.Write.Domain project: ✅ / ❌
 - Shared.Write.Infrastructure project: ✅ / ❌
+- Shared.Read.Infrastructure project: ✅ / ❌
 - Api project: ✅ / ❌
 - E2E test project: ✅ / ❌
 
@@ -192,14 +199,22 @@ Save to: `docs/scaffold-general-<date>.md`
 | Concern | Status | Details |
 |---|---|---|
 | MediatRCommandBus | ✅ / ❌ | |
-| MediatRQueryBus | ✅ / ❌ | |
 | CommandRequest wrappers | ✅ / ❌ | |
 | CommandRequestHandler adapters | ✅ / ❌ | |
-| AddMessaging() extension | ✅ / ❌ | |
+| AddWriteMessaging() extension | ✅ / ❌ | |
 | IStateRebuilder<TAggregate, TId> | ✅ / ❌ | |
 | EventSerializer | ✅ / ❌ | |
 | TypedIdConverterFactory | ✅ / ❌ | |
 | ConcurrencyException | ✅ / ❌ | |
+
+## Shared.Read.Infrastructure Status
+
+| Concern | Status | Details |
+|---|---|---|
+| MediatRQueryBus | ✅ / ❌ | |
+| QueryRequest wrappers | ✅ / ❌ | |
+| QueryRequestHandler adapters | ✅ / ❌ | |
+| AddReadMessaging() extension | ✅ / ❌ | |
 
 ## API Shell Status
 
@@ -287,7 +302,7 @@ Present files created and build status. Ask:
 
 ### Goal
 
-Create Shared.Write.Infrastructure with messaging (MediatR) and Event Sourcing infrastructure.
+Create Shared.Write.Infrastructure with command messaging (MediatR) and Event Sourcing infrastructure.
 
 ### Steps
 
@@ -296,15 +311,12 @@ Create Shared.Write.Infrastructure with messaging (MediatR) and Event Sourcing i
    - Add `MediatR` NuGet package
    - Add `Microsoft.Extensions.DependencyInjection.Abstractions` NuGet package
    - Add `System.Text.Json` if needed
-2. Create MediatR adapter in `Messaging/`:
+2. Create MediatR **command** adapter in `Messaging/`:
    - `CommandRequest.cs` — `CommandRequest<TCommand, TResult> : IRequest<TResult>` + `VoidCommandRequest<TCommand> : IRequest`
    - `CommandRequestHandler.cs` — Delegates to `ICommandHandler<TCommand, TResult>`
    - `VoidCommandRequestHandler.cs` — Delegates to `ICommandHandler<TCommand>`
-   - `QueryRequest.cs` — `QueryRequest<TQuery, TResult> : IRequest<TResult>`
-   - `QueryRequestHandler.cs` — Delegates to `IQueryHandler<TQuery, TResult>`
    - `MediatRCommandBus.cs` — Implements `ICommandBus` using `ISender`
-   - `MediatRQueryBus.cs` — Implements `IQueryBus` using `ISender`
-   - `ServiceCollectionExtensions.cs` — `AddMessaging(Assembly applicationAssembly)` auto-scans handlers
+   - `ServiceCollectionExtensions.cs` — `AddWriteMessaging(Assembly applicationAssembly)` auto-scans command handlers
 3. Create ES infrastructure:
    - `EventStore/IStateRebuilder.cs` — `IStateRebuilder<TAggregate, TId>`
    - `Serialization/EventSerializer.cs` — Assembly-scanning JSON serializer for domain events
@@ -321,7 +333,38 @@ Run `dotnet build` — must compile.
 ⛔ **GATE: Stop after creating Shared.Write.Infrastructure.**
 
 Present files created and build status. Ask:
-> *"Shared.Write.Infrastructure créé (messaging MediatR + infrastructure ES). Tout compile. Confirmez pour passer au shell API."*
+> *"Shared.Write.Infrastructure créé (command messaging MediatR + infrastructure ES). Tout compile. Confirmez pour passer à Shared.Read.Infrastructure."*
+
+---
+
+## GENERAL — PHASE 2b — SHARED READ INFRASTRUCTURE
+
+### Goal
+
+Create Shared.Read.Infrastructure with query messaging (MediatR).
+
+### Steps
+
+1. Create `src/Shared/Read/Shared.Read.Infrastructure.csproj`
+   - Reference Shared.Write.Domain (for IQuery, IQueryHandler, IQueryBus abstractions)
+   - Add `MediatR` NuGet package
+   - Add `Microsoft.Extensions.DependencyInjection.Abstractions` NuGet package
+2. Create MediatR **query** adapter in `Messaging/`:
+   - `QueryRequest.cs` — `QueryRequest<TQuery, TResult> : IRequest<TResult>`
+   - `QueryRequestHandler.cs` — Delegates to `IQueryHandler<TQuery, TResult>`
+   - `MediatRQueryBus.cs` — Implements `IQueryBus` using `ISender`
+   - `ServiceCollectionExtensions.cs` — `AddReadMessaging(Assembly applicationAssembly)` auto-scans query handlers
+
+### Verification
+
+Run `dotnet build` — must compile.
+
+### Gate — End of PHASE 2b
+
+⛔ **GATE: Stop after creating Shared.Read.Infrastructure.**
+
+Present files created and build status. Ask:
+> *"Shared.Read.Infrastructure créé (query messaging MediatR). Tout compile. Confirmez pour passer au shell API."*
 
 ---
 
@@ -334,7 +377,7 @@ Create the API project with composition root, error middleware, and health endpo
 ### Steps
 
 1. Create `src/Api/Api.csproj` (ASP.NET Core Web API)
-   - Reference Shared.Write.Domain and Shared.Write.Infrastructure
+   - Reference Shared.Write.Domain, Shared.Write.Infrastructure, and Shared.Read.Infrastructure
 2. Create `src/Api/Program.cs`:
    - Minimal composition root
    - Register `TimeProvider.System` as singleton
@@ -420,11 +463,14 @@ Shared.Write.Domain:
 
 Shared.Write.Infrastructure:
 - ICommandBus → MediatRCommandBus (MediatR hidden in Infrastructure)
-- IQueryBus → MediatRQueryBus (MediatR hidden in Infrastructure)
-- AddMessaging() auto-scans handlers
+- AddWriteMessaging() auto-scans command handlers
 - IStateRebuilder<TAggregate, TId>
 - EventSerializer, TypedIdConverterFactory
 - ConcurrencyException
+
+Shared.Read.Infrastructure:
+- IQueryBus → MediatRQueryBus (MediatR hidden in Infrastructure)
+- AddReadMessaging() auto-scans query handlers
 - MediatR NEVER referenced in Domain or Application ✅
 
 API shell:
@@ -638,8 +684,9 @@ Wire all BC services in `Program.cs` (or a dedicated extension class):
 - State rebuilders (if ES)
 - Projections and ProjectionDispatcher (if ES)
 - Port implementations → their interfaces
-- **`builder.Services.AddMessaging(typeof(SomeCommandInBC).Assembly)`** for this BC's handlers
-- **DO NOT register individual handlers manually** — `AddMessaging()` does this automatically
+- **`builder.Services.AddWriteMessaging(typeof(SomeCommandInBC).Assembly)`** for this BC's command handlers
+- **`builder.Services.AddReadMessaging(typeof(SomeQueryInBC).Assembly)`** for this BC's query handlers
+- **DO NOT register individual handlers manually** — `AddWriteMessaging()` / `AddReadMessaging()` do this automatically
 
 #### 2. API Endpoints
 
@@ -766,11 +813,8 @@ src/
 │   │       │   ├── CommandRequest.cs
 │   │       │   ├── CommandRequestHandler.cs
 │   │       │   ├── VoidCommandRequestHandler.cs
-│   │       │   ├── QueryRequest.cs
-│   │       │   ├── QueryRequestHandler.cs
 │   │       │   ├── MediatRCommandBus.cs
-│   │       │   ├── MediatRQueryBus.cs
-│   │       │   └── ServiceCollectionExtensions.cs
+│   │       │   └── ServiceCollectionExtensions.cs    # AddWriteMessaging()
 │   │       ├── EventStore/
 │   │       │   └── IStateRebuilder.cs
 │   │       ├── Serialization/
@@ -780,7 +824,12 @@ src/
 │   │       └── Exceptions/
 │   │           └── ConcurrencyException.cs
 │   └── Read/
-│       (created when needed)
+│       └── Shared.Read.Infrastructure.csproj         # References Shared.Write.Domain, MediatR
+│           └── Messaging/
+│               ├── QueryRequest.cs
+│               ├── QueryRequestHandler.cs
+│               ├── MediatRQueryBus.cs
+│               └── ServiceCollectionExtensions.cs    # AddReadMessaging()
 ├── <BoundedContext>/
 │   ├── Write/
 │   │   ├── <BC>.Write.Domain.csproj
@@ -819,8 +868,10 @@ src/
 │   └── Middleware/
 │       └── DomainExceptionMiddleware.cs
 tests/
-├── <BoundedContext>.Write.Application.UnitTests/
-├── <BoundedContext>.Read.Application.UnitTests/
+├── <BoundedContext>.UnitTests/
+│   ├── <Command>Doit.cs                              # Flat — no subdirectories
+│   └── Fakes/
+│       └── Fake<Port>.cs
 └── <SolutionName>.E2E.Tests/
     ├── E2EFixture.cs
     ├── E2ECollection.cs

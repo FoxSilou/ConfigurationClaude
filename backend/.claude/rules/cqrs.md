@@ -38,6 +38,7 @@ src/<BoundedContext>/
 
 - **Read and Write never reference each other.** They are independent stacks.
 - **Shared abstractions** (`AggregateRoot<TId>`, `ICommand<T>`, `IQuery<T>`, `IDomainEvent`, `ICommandBus`, `IQueryBus`, etc.) live in `Shared.Write.Domain`.
+- **Command MediatR adapters** live in `Shared.Write.Infrastructure`. **Query MediatR adapters** live in `Shared.Read.Infrastructure`.
 - **The Write side** owns the rich Domain (aggregates, entities, value objects, events) and the Commands.
 - **The Read side** is optimized for reading: it can use lightweight read models, Dapper, projections, or a dedicated read DbContext. It does not need to go through Write-side aggregates.
 - **Queries never modify state** — no writes, no events.

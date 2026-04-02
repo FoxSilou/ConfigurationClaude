@@ -16,8 +16,10 @@ globs: ["**/Infrastructure/**/*.cs", "**/Api/**/*.cs"]
 Domain         → NO MediatR reference
 Application    → NO MediatR reference (uses ICommand, IQuery, ICommandHandler, IQueryHandler)
 Shared.Write.Domain   → NO MediatR reference (defines ICommandBus, IQueryBus, etc.)
-Infrastructure → YES — MediatR adapters, pipeline behaviors, DI registration
-Api            → Acceptable — Composition root, uses ISender to dispatch (or use ICommandBus port)
+Shared.Write.Infrastructure → YES — MediatR command adapters, pipeline behaviors, AddWriteMessaging()
+Shared.Read.Infrastructure  → YES — MediatR query adapters, AddReadMessaging()
+BC Infrastructure → YES — DI registration
+Api            → Acceptable — Composition root, uses ICommandBus/IQueryBus (or ISender if not using the port)
 ```
 
 **No file** in Domain, Application, or Shared.Write.Domain must contain `using MediatR`.
@@ -45,26 +47,29 @@ public interface ICommandBus
 }
 ```
 
-## MediatR Adapter (Infrastructure)
+## MediatR Adapters (Infrastructure)
 
-The adapter wraps our generic interfaces to make them compatible with MediatR's `IRequest`/`IRequestHandler`:
+Command and Query adapters are **split across two Shared Infrastructure projects** to respect CQRS:
+
+- **Shared.Write.Infrastructure** — command adapters: `CommandRequest`, `CommandRequestHandler`, `VoidCommandRequestHandler`, `MediatRCommandBus`, `AddWriteMessaging()`
+- **Shared.Read.Infrastructure** — query adapters: `QueryRequest`, `QueryRequestHandler`, `MediatRQueryBus`, `AddReadMessaging()`
 
 ```csharp
-// Infrastructure — this is the ONLY place MediatR types appear
+// Shared.Write.Infrastructure — command adapter
 using MediatR;
 
-internal sealed class MediatRCommandAdapter<TCommand, TResult>(
+internal sealed class CommandRequestHandler<TCommand, TResult>(
     ICommandHandler<TCommand, TResult> handler)
-    : IRequestHandler<MediatRCommandWrapper<TCommand, TResult>, TResult>
+    : IRequestHandler<CommandRequest<TCommand, TResult>, TResult>
     where TCommand : ICommand<TResult>
 {
     public Task<TResult> Handle(
-        MediatRCommandWrapper<TCommand, TResult> request,
+        CommandRequest<TCommand, TResult> request,
         CancellationToken ct)
         => handler.HandleAsync(request.Command, ct);
 }
 
-internal sealed record MediatRCommandWrapper<TCommand, TResult>(TCommand Command)
+internal sealed record CommandRequest<TCommand, TResult>(TCommand Command)
     : IRequest<TResult>
     where TCommand : ICommand<TResult>;
 ```
@@ -89,8 +94,10 @@ app.MapPost("/api/parties", async (CreerPartieRequest request, ICommandBus comma
 | **Domain** | ❌ NEVER | Domain model, no technical dependencies |
 | **Shared.Write.Domain** | ❌ NEVER | ICommand, IQuery, ICommandBus, IQueryBus (our own interfaces) |
 | **Application** | ❌ NEVER | ICommandHandler, IQueryHandler implementations |
-| **Infrastructure** | ✅ YES | MediatR adapters, pipeline behaviors, DI registration |
-| **Api** | ✅ Acceptable | Composition root, uses ICommandBus (or ISender if not using the port) |
+| **Shared.Write.Infrastructure** | ✅ YES | MediatR command adapters, pipeline behaviors, AddWriteMessaging() |
+| **Shared.Read.Infrastructure** | ✅ YES | MediatR query adapters, AddReadMessaging() |
+| **BC Infrastructure** | ✅ YES | DI registration |
+| **Api** | ✅ Acceptable | Composition root, uses ICommandBus/IQueryBus |
 
 
 ---

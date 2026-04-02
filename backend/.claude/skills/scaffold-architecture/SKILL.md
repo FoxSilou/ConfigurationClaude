@@ -29,8 +29,9 @@ src/
 ├── Shared/
 │   ├── Write/
 │   │   ├── Shared.Write.Domain.csproj              ← Pure C#, zero deps
-│   │   └── Shared.Write.Infrastructure.csproj      ← MediatR, ES infra
-│   └── Read/                                        ← Created when needed
+│   │   └── Shared.Write.Infrastructure.csproj      ← MediatR command adapters, ES infra
+│   └── Read/
+│       └── Shared.Read.Infrastructure.csproj       ← MediatR query adapters
 ├── <BoundedContext>/
 │   ├── Write/
 │   │   ├── <BC>.Write.Domain.csproj
@@ -42,7 +43,7 @@ src/
 ├── Api/
 │   └── Api.csproj
 tests/
-├── <BC>.Write.Application.UnitTests/
+├── <BC>.UnitTests/
 └── <SolutionName>.E2E.Tests/
 ```
 
@@ -61,10 +62,11 @@ When scaffolding a BC, create BOTH stacks (even if Read side is empty initially)
 MediatR lives **exclusively** in Infrastructure. See rule `mediatr.md`.
 
 - **`ICommand<T>`**, **`ICommandHandler<TCommand, TResult>`**, **`ICommand`**, **`ICommandHandler<TCommand>`** are generic interfaces defined in `Shared.Write.Domain/Abstractions/`. They have **zero dependency on MediatR**.
-- **`ICommandBus`** is defined in `Shared.Write.Domain/Abstractions/`. This is the dispatch abstraction that API endpoints inject. It has **zero dependency on MediatR**.
-- **`MediatRCommandBus`** (in `Shared.Write.Infrastructure/Messaging/`) implements `ICommandBus` using MediatR's `ISender` internally.
-- **Wrapper types** (`CommandRequest<TCommand, TResult>`, `VoidCommandRequest<TCommand>`) in `Shared.Write.Infrastructure/Messaging/` bridge our interfaces to MediatR's `IRequest`/`IRequestHandler`.
-- **Adapter handlers** (`CommandRequestHandler<TCommand, TResult>`, `VoidCommandRequestHandler<TCommand>`) in `Shared.Write.Infrastructure/Messaging/` delegate from MediatR to our `ICommandHandler` implementations.
+- **`IQuery<T>`**, **`IQueryHandler<TQuery, TResult>`**, **`IQueryBus`** are also defined in `Shared.Write.Domain/Abstractions/`. Zero MediatR dependency.
+- **`ICommandBus`** is defined in `Shared.Write.Domain/Abstractions/`. This is the dispatch abstraction that API endpoints inject.
+- **Command adapters** live in **`Shared.Write.Infrastructure/Messaging/`**: `MediatRCommandBus`, `CommandRequest`, `CommandRequestHandler`, `VoidCommandRequestHandler`, `AddWriteMessaging()`.
+- **Query adapters** live in **`Shared.Read.Infrastructure/Messaging/`**: `MediatRQueryBus`, `QueryRequest`, `QueryRequestHandler`, `AddReadMessaging()`.
+- This split respects strict CQRS: Write infrastructure handles Commands, Read infrastructure handles Queries.
 
 **If you see `using MediatR` in a file under Domain or Application — you are violating the rules. Stop and fix it.**
 
@@ -93,17 +95,25 @@ InscrireUtilisateur.Handler (Application)
 
 ## Handler Registration — Automatic Assembly Scanning
 
-Handlers are **never registered manually** in Program.cs. Instead, Shared.Write.Infrastructure provides an extension method `AddMessaging(Assembly applicationAssembly)` that:
+Handlers are **never registered manually** in Program.cs. Two extension methods handle registration:
 
+**`AddWriteMessaging(Assembly)`** (from `Shared.Write.Infrastructure`):
 1. Calls `AddMediatR(cfg => ...)` — registers ISender, IMediator
 2. Scans the Application assembly for all `ICommandHandler<,>` and `ICommandHandler<>` implementations
 3. Registers each handler in DI
-4. Registers the corresponding MediatR adapter handler
-5. Registers `ICommandBus` -> `MediatRCommandBus`
+4. Registers the corresponding MediatR command adapter handler
+5. Registers `ICommandBus` → `MediatRCommandBus`
+
+**`AddReadMessaging(Assembly)`** (from `Shared.Read.Infrastructure`):
+1. Scans the Read Application assembly for all `IQueryHandler<,>` implementations
+2. Registers each handler in DI
+3. Registers the corresponding MediatR query adapter handler
+4. Registers `IQueryBus` → `MediatRQueryBus`
 
 ```csharp
-// In Program.cs — one line per BC
-builder.Services.AddMessaging(typeof(SomeCommandInBC).Assembly);
+// In Program.cs — one line per BC per stack
+builder.Services.AddWriteMessaging(typeof(SomeCommandInBC).Assembly);
+builder.Services.AddReadMessaging(typeof(SomeQueryInBC).Assembly);
 ```
 
 ---
@@ -157,6 +167,7 @@ All aggregate roots inherit from `AggregateRoot<TId>`. See rule `aggregate.md`.
 
 The shared ES infrastructure lives in `Shared.Write.Infrastructure` and `Shared.Write.Domain`. See skill `event-sourcing` for full details.
 
-- **Shared.Write.Domain**: `IEventStore`, `IProjection`, `Snapshot`, `ITypedId<T>`
-- **Shared.Write.Infrastructure**: `IStateRebuilder<TAggregate, TId>`, `EventSerializer`, `TypedIdConverterFactory`, `ConcurrencyException`
+- **Shared.Write.Domain**: `IEventStore`, `IProjection`, `Snapshot`, `ITypedId<T>`, `ICommand`, `ICommandBus`, `IQuery`, `IQueryBus`
+- **Shared.Write.Infrastructure**: `MediatRCommandBus`, `AddWriteMessaging()`, `IStateRebuilder<TAggregate, TId>`, `EventSerializer`, `TypedIdConverterFactory`, `ConcurrencyException`
+- **Shared.Read.Infrastructure**: `MediatRQueryBus`, `AddReadMessaging()`
 - **Per-BC Infrastructure**: `EventStoreDbContext`, `StoredEvent`, `AggregateSnapshot`, `<Aggregate>StateRebuilder`, `EventSourced<Aggregate>Repository`, projections

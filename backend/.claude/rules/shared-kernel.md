@@ -123,7 +123,7 @@ public class NotFoundException(string message) : DomainException(message);
 ## Rules
 
 - **Zero external dependencies** — Shared.Write.Domain references no NuGet packages. It is pure C#.
-- **No MediatR** — `ICommand`, `IQuery`, `ICommandBus`, `IQueryBus` are our own interfaces. MediatR adapters live in Shared.Write.Infrastructure.
+- **No MediatR** — `ICommand`, `IQuery`, `ICommandBus`, `IQueryBus` are our own interfaces. MediatR command adapters live in Shared.Write.Infrastructure, query adapters in Shared.Read.Infrastructure.
 - **No business logic** — Shared.Write.Domain provides abstractions and base types, not domain-specific behavior.
 - **All Bounded Contexts may reference Shared.Write.Domain** — but Shared.Write.Domain references nothing else.
 - **Stable contracts** — changes to Shared.Write.Domain affect all BCs, so abstractions must be stable.

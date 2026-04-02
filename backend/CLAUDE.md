@@ -21,9 +21,10 @@ src/
 │   ├── Write/
 │   │   ├── Shared.Write.Domain.csproj          → AggregateRoot<TId>, IDomainEvent, ITypedId, ICommand, IQuery,
 │   │   │                                         ICommandBus, IQueryBus, IEventStore, IProjection, exceptions
-│   │   └── Shared.Write.Infrastructure.csproj  → MediatR adapters (MediatRCommandBus, AddMessaging()),
+│   │   └── Shared.Write.Infrastructure.csproj  → MediatR command adapters (MediatRCommandBus, AddWriteMessaging()),
 │   │                                              ES infra (IStateRebuilder, EventSerializer, TypedIdConverterFactory)
-│   └── Read/                                    → Created when needed
+│   └── Read/
+│       └── Shared.Read.Infrastructure.csproj   → MediatR query adapters (MediatRQueryBus, AddReadMessaging())
 ├── <BoundedContext>/
 │   ├── Write/
 │   │   ├── <BC>.Write.Domain.csproj            → Aggregates, Entities, ValueObjects, Events, Ports
@@ -35,8 +36,7 @@ src/
 ├── Api/
 │   └── Api.csproj                               ← Composition root
 tests/
-├── <BoundedContext>.Write.Application.UnitTests/
-├── <BoundedContext>.Read.Application.UnitTests/
+├── <BoundedContext>.UnitTests/
 └── ImperiumRex.E2E.Tests/
 ```
 

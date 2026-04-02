@@ -19,7 +19,7 @@ This project follows the **Classical School** (Detroit/Chicago) of unit testing,
 
 - Test **observable behavior**, never implementation details.
 - A test that breaks after an internal refactoring (without changing behavior) is a **bad test**.
-- Tests are written at the **use case boundary** (Command/Query handler) — not on individual domain classes in isolation.
+- **Unit tests ONLY test Commands** — they are written at the use case boundary (Command handler). Value Objects, Aggregates, and Entities are tested implicitly through the Command handler, never in isolation.
 - Real domain collaborators are used inside the hexagon. Only **external ports** (persistence, email, etc.) are replaced by test doubles.
 - If something is hard to test, **the design is wrong** — fix the design, not the test.
 
@@ -231,8 +231,9 @@ reconstituee.DomainEvents.Should().BeEmpty();
 
 ---
 
-## What NOT to Test
+## What NOT to Test in Unit Tests
 
+- **Value Objects, Aggregates, Entities in isolation** — they are tested implicitly through the Command handler. If a VO validation matters, it surfaces when the handler constructs it.
 - **Internal domain class methods** not reachable from a use case boundary — if it matters, it surfaces through the handler.
 - **Infrastructure adapters** in unit tests — use integration tests with TestContainers instead.
 - **Private methods** — if a private method needs testing, extract it into a domain concept.
@@ -242,17 +243,19 @@ reconstituee.DomainEvents.Should().BeEmpty();
 
 ## Test File Structure
 
-Each test class maps to one Command or Query:
+The test project is named `<BC>.UnitTests` (e.g., `Identite.UnitTests`). Test files are **flat at the root** of the project — no subdirectories per Command (no `ValueObjects/`, `Aggregates/`, `Handlers/` folders). Only the `Fakes/` directory is allowed.
 
 ```
 tests/
-└── Application.UnitTests/
-    ├── CreerPartie/
-    │   └── CreerPartieDoit.cs
-    └── ObtenirPartie/
-        └── ObtenirPartieDoit.cs
+└── <BC>.UnitTests/
+    ├── InscrireUtilisateurDoit.cs
+    ├── ConfirmerEmailDoit.cs
+    └── Fakes/
+        ├── FakeUtilisateurRepository.cs
+        ├── FakePasswordHasher.cs
+        └── FakeEmailSender.cs
 ```
 
-One test file = one use case. All scenarios for that use case live in the same file.
+One test file = one Command. All scenarios for that Command live in the same file.
 
 
