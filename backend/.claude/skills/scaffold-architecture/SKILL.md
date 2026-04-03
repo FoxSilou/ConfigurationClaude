@@ -168,6 +168,6 @@ All aggregate roots inherit from `AggregateRoot<TId>`. See rule `aggregate.md`.
 The shared ES infrastructure lives in `Shared.Write.Infrastructure` and `Shared.Write.Domain`. See skill `event-sourcing` for full details.
 
 - **Shared.Write.Domain**: `IEventStore`, `IProjection`, `Snapshot`, `ITypedId<T>`, `ICommand`, `ICommandBus`, `IQuery`, `IQueryBus`
-- **Shared.Write.Infrastructure**: `MediatRCommandBus`, `AddWriteMessaging()`, `IStateRebuilder<TAggregate, TId>`, `EventSerializer`, `TypedIdConverterFactory`, `ConcurrencyException`
+- **Shared.Write.Infrastructure**: `MediatRCommandBus`, `AddWriteMessaging()`, `IStateRebuilder<TAggregate, TId>`, `EventSerializer`, `TypedIdConverterFactory`, `ValueObjectConverterFactory`, `ConcurrencyException`
 - **Shared.Read.Infrastructure**: `MediatRQueryBus`, `AddReadMessaging()`
 - **Per-BC Infrastructure**: `EventStoreDbContext`, `StoredEvent`, `AggregateSnapshot`, `<Aggregate>StateRebuilder`, `EventSourced<Aggregate>Repository`, projections

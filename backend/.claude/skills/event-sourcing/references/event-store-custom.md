@@ -302,7 +302,12 @@ internal sealed class EventSerializer
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
+        WriteIndented = false,
+        Converters =
+        {
+            new TypedIdConverterFactory(),
+            new ValueObjectConverterFactory()
+        }
     };
 
     // Maps discriminator string → CLR type. Populated at startup via assembly scanning.

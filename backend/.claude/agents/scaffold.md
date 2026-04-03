@@ -317,12 +317,32 @@ Create Shared.Write.Infrastructure with command messaging (MediatR) and Event So
    - `VoidCommandRequestHandler.cs` — Delegates to `ICommandHandler<TCommand>`
    - `MediatRCommandBus.cs` — Implements `ICommandBus` using `ISender`
    - `ServiceCollectionExtensions.cs` — `AddWriteMessaging(Assembly applicationAssembly)` auto-scans command handlers
+   
+   ⚠️ **CRITICAL: `AddWriteMessaging()` must register closed MediatR adapter types.**
+   For each discovered `ICommandHandler<TCommand, TResult>`, also register:
+   - `IRequestHandler<CommandRequest<TCommand, TResult>, TResult>` → `CommandRequestHandler<TCommand, TResult>`
+   For each discovered `ICommandHandler<TCommand>` (void), also register:
+   - `IRequestHandler<VoidCommandRequest<TCommand>>` → `VoidCommandRequestHandler<TCommand>`
+   
+   Without this, MediatR's `ISender.Send()` cannot resolve the adapter and dispatch silently fails.
+   MediatR's `RegisterServicesFromAssembly` only discovers types in that assembly — it cannot auto-discover
+   open generic adapters for handlers in a different assembly. The closed types must be registered explicitly.
+
 3. Create ES infrastructure:
    - `EventStore/IStateRebuilder.cs` — `IStateRebuilder<TAggregate, TId>`
    - `Serialization/EventSerializer.cs` — Assembly-scanning JSON serializer for domain events
    - `Serialization/TypedIdConverter.cs` — `TypedIdConverter<TId>` for `ITypedId<Guid>` JSON serialization
    - `Serialization/TypedIdConverterFactory.cs` — `JsonConverterFactory` for all typed Ids
+   - `Serialization/ValueObjectConverterFactory.cs` — `JsonConverterFactory` for all Value Objects with `Valeur` property and `Reconstituer()` method
    - `Exceptions/ConcurrencyException.cs` — Optimistic concurrency exception
+
+   ⚠️ **CRITICAL: `EventSerializer` must use `type.Name` (not `type.FullName`) as the type map key.**
+   The `SqlEventStore` (in BC Infrastructure) stores `GetType().Name` (e.g., `"UtilisateurInscrit"`).
+   The serializer must index by the same key for deserialization to work.
+
+   ⚠️ **CRITICAL: `EventSerializer` default `JsonSerializerOptions` must include `TypedIdConverterFactory` and `ValueObjectConverterFactory`.**
+   Domain events contain Value Objects (`readonly record struct` with private constructor) and Typed Ids.
+   Without these converters, JSON serialization/deserialization of events fails silently or throws.
 
 ### Verification
 
@@ -354,6 +374,12 @@ Create Shared.Read.Infrastructure with query messaging (MediatR).
    - `QueryRequestHandler.cs` — Delegates to `IQueryHandler<TQuery, TResult>`
    - `MediatRQueryBus.cs` — Implements `IQueryBus` using `ISender`
    - `ServiceCollectionExtensions.cs` — `AddReadMessaging(Assembly applicationAssembly)` auto-scans query handlers
+   
+   ⚠️ **CRITICAL: `AddReadMessaging()` must register closed MediatR adapter types** (same pattern as `AddWriteMessaging`).
+   For each discovered `IQueryHandler<TQuery, TResult>`, also register:
+   - `IRequestHandler<QueryRequest<TQuery, TResult>, TResult>` → `QueryRequestHandler<TQuery, TResult>`
+   
+   Without this, MediatR's `ISender.Send()` cannot resolve the adapter and query dispatch fails.
 
 ### Verification
 
@@ -463,14 +489,15 @@ Shared.Write.Domain:
 
 Shared.Write.Infrastructure:
 - ICommandBus → MediatRCommandBus (MediatR hidden in Infrastructure)
-- AddWriteMessaging() auto-scans command handlers
+- AddWriteMessaging() auto-scans command handlers + registers closed MediatR adapters
 - IStateRebuilder<TAggregate, TId>
-- EventSerializer, TypedIdConverterFactory
+- EventSerializer (type.Name key, with TypedIdConverterFactory + ValueObjectConverterFactory)
+- TypedIdConverterFactory, ValueObjectConverterFactory
 - ConcurrencyException
 
 Shared.Read.Infrastructure:
 - IQueryBus → MediatRQueryBus (MediatR hidden in Infrastructure)
-- AddReadMessaging() auto-scans query handlers
+- AddReadMessaging() auto-scans query handlers + registers closed MediatR adapters
 - MediatR NEVER referenced in Domain or Application ✅
 
 API shell:
@@ -818,9 +845,10 @@ src/
 │   │       ├── EventStore/
 │   │       │   └── IStateRebuilder.cs
 │   │       ├── Serialization/
-│   │       │   ├── EventSerializer.cs
+│   │       │   ├── EventSerializer.cs                 # Uses type.Name as key, includes all converters
 │   │       │   ├── TypedIdConverter.cs
-│   │       │   └── TypedIdConverterFactory.cs
+│   │       │   ├── TypedIdConverterFactory.cs
+│   │       │   └── ValueObjectConverterFactory.cs     # JSON converter for readonly record struct VOs
 │   │       └── Exceptions/
 │   │           └── ConcurrencyException.cs
 │   └── Read/

@@ -18,7 +18,11 @@
       "Bash(sed -i 's/ImperiumRex\\\\.sln/<SolutionName>.sln/g' agents/scaffold.md skills/scaffold-back/SKILL.md skills/scaffold-architecture/SKILL.md)",
       "Bash(sed -i 's/ImperiumRex\\\\.E2E\\\\.Tests/<SolutionName>.E2E.Tests/g' agents/scaffold.md skills/scaffold-architecture/SKILL.md)",
       "Bash(sed -i 's/`ImperiumRex\\\\.sln`/`<SolutionName>.sln`/g' agents/scaffold.md skills/scaffold-back/SKILL.md)",
-      "Bash(sed -i 's/\\(ImperiumRex\\\\.sln\\)/\\(<SolutionName>.sln\\)/g' agents/scaffold.md)"
+      "Bash(sed -i 's/\\(ImperiumRex\\\\.sln\\)/\\(<SolutionName>.sln\\)/g' agents/scaffold.md)",
+      "Read(//c/Users/cedric/.nuget/packages/**)",
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Bash(ls:*)"
     ]
   }
 }
