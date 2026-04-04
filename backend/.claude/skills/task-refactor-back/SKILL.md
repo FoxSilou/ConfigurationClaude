@@ -1,5 +1,5 @@
 ---
-name: refactor-back
+name: task-refactor-back
 description: Refactor existing code without changing behavior (iso-functional)
 user-invocable: true
 argument-hint: "<scope or file(s) to refactor>"
@@ -7,7 +7,7 @@ context: fork
 agent: refactor
 ---
 
-# /refactor-back -> refactor agent
+# /task-refactor-back -> refactor agent
 
 Delegates to the `refactor` agent.
 

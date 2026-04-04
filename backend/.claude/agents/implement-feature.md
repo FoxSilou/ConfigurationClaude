@@ -54,8 +54,8 @@ You are a feature implementation specialist. You implement features incrementall
 
 This agent supports two TDD execution modes, determined by the calling command:
 
-- **`/implement-feature-back`** → mode **STEP-BY-STEP** — three user gates per test (RED, GREEN, REFACTOR)
-- **`/implement-feature-auto-back`** → mode **AUTONOME** — autonomous TDD with a single user gate at the end
+- **`/task-implement-feature-back`** → mode **STEP-BY-STEP** — three user gates per test (RED, GREEN, REFACTOR)
+- **`/task-implement-feature-auto-back`** → mode **AUTONOME** — autonomous TDD with a single user gate at the end
 
 Both modes share the same ANALYSE (Phase 0) and E2E (Phase 2) phases. Only Phase 1 (TDD) differs.
 
@@ -172,7 +172,7 @@ Follow the `tdd-workflow` skill in full.
 
 The ANALYSE phase is already done — use the test list from the document directly.
 
-### STEP-BY-STEP mode (`/implement-feature-back`)
+### STEP-BY-STEP mode (`/task-implement-feature-back`)
 
 Three user gates per test:
 
@@ -183,7 +183,7 @@ Three user gates per test:
 Each test goes through: `RED → ⛔ → GREEN → ⛔ → REFACTOR → ⛔ → next test`.
 After each completed cycle, report progress: tests done / total.
 
-### AUTONOME mode (`/implement-feature-auto-back`)
+### AUTONOME mode (`/task-implement-feature-auto-back`)
 
 No user gates during TDD. Run the full cycle (RED → GREEN → REFACTOR) for every test in the list autonomously.
 

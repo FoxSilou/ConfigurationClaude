@@ -1,5 +1,5 @@
 ---
-name: event-storming
+name: task-event-storming
 description: Event Storming workshop for domain discovery — produces markdown + Excalidraw board
 user-invocable: true
 argument-hint: "<domain or document>"
@@ -7,21 +7,21 @@ context: fork
 agent: event-storming
 ---
 
-# /event-storming -> event-storming agent
+# /task-event-storming -> event-storming agent
 
 Delegates to the `event-storming` agent.
 
 ## Usage
 
 ```
-/event-storming <domain or document>
+/task-event-storming <domain or document>
 ```
 
 ## Examples
 
 ```
-/event-storming je veux créer une application de gestion de tournois de jeux de société
-/event-storming [paste document or fuzzy rules here]
+/task-event-storming je veux créer une application de gestion de tournois de jeux de société
+/task-event-storming [paste document or fuzzy rules here]
 ```
 
 ## What this triggers
@@ -36,4 +36,4 @@ Delegates to the `event-storming` agent.
 
 ## Suggested follow-up
 
-Run `/bdd-workshop` on the produced document to formalize scenarios.
+Run `/task-bdd-workshop` on the produced document to formalize scenarios.

@@ -67,11 +67,11 @@ Dependencies flow **inward only**: Api → Application → Domain. Infrastructur
 
 | Command | Description |
 |---|---|
-| `/scaffold-back` | Infrastructure scaffolding (general foundation or BC-specific) |
-| `/implement-feature-back` | TDD step-by-step with user gates |
-| `/implement-feature-auto-back` | TDD autonomous mode |
-| `/fix-bug-back` | Test-first bug fixing |
-| `/refactor-back` | Iso-functional refactoring |
+| `/task-scaffold-back` | Infrastructure scaffolding (general foundation or BC-specific) |
+| `/task-implement-feature-back` | TDD step-by-step with user gates |
+| `/task-implement-feature-auto-back` | TDD autonomous mode |
+| `/task-fix-bug-back` | Test-first bug fixing |
+| `/task-refactor-back` | Iso-functional refactoring |
 
 ## Useful Commands
 

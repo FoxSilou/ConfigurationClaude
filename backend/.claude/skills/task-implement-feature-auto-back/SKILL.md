@@ -1,5 +1,5 @@
 ---
-name: implement-feature-auto-back
+name: task-implement-feature-auto-back
 description: Implement a new feature using TDD autonomously (single user gate at the end)
 user-invocable: true
 argument-hint: "<feature description or .feature file>"
@@ -7,7 +7,7 @@ context: fork
 agent: implement-feature
 ---
 
-# /implement-feature-auto-back -> implement-feature agent (AUTONOME mode)
+# /task-implement-feature-auto-back -> implement-feature agent (AUTONOME mode)
 
 Delegates to the `implement-feature` agent in **AUTONOME** mode.
 
@@ -40,4 +40,4 @@ Use this mode when:
 
 ## See also
 
-- `/implement-feature-back` — step-by-step mode with user gates after each RED, GREEN, and REFACTOR
+- `/task-implement-feature-back` — step-by-step mode with user gates after each RED, GREEN, and REFACTOR

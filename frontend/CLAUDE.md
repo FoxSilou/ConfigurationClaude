@@ -39,7 +39,7 @@ The frontend follows a clean separation between:
 
 | Command | Description |
 |---|---|
-| `/scaffold-front` | Frontend project structure + test harness (bUnit + Playwright) |
+| `/task-scaffold-front` | Frontend project structure + test harness (bUnit + Playwright) |
 
 ## Expected Behavior
 

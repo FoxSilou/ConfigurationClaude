@@ -1,11 +1,11 @@
 ---
-name: scaffold
+name: task-scaffold
 description: Scaffold infrastructure for backend, frontend, or both — orchestrates scaffold-back and scaffold-front
 user-invocable: true
 argument-hint: "[bounded context or feature area]"
 ---
 
-# /scaffold -> Global scaffolding orchestrator
+# /task-scaffold -> Global scaffolding orchestrator
 
 Orchestrates the `scaffold-back` and `scaffold-front` agents. Asks the user which scope to scaffold before delegating.
 
@@ -21,9 +21,9 @@ Orchestrates the `scaffold-back` and `scaffold-front` agents. Asks the user whic
 When invoked, ask the user:
 
 > *"Que souhaitez-vous scaffolder ?"*
-> 1. **Backend uniquement** — lance `/scaffold-back`
-> 2. **Frontend uniquement** — lance `/scaffold-front`
-> 3. **Les deux** — lance `/scaffold-back` d'abord, puis `/scaffold-front` après validation
+> 1. **Backend uniquement** — lance `/task-scaffold-back`
+> 2. **Frontend uniquement** — lance `/task-scaffold-front`
+> 3. **Les deux** — lance `/task-scaffold-back` d'abord, puis `/task-scaffold-front` après validation
 
 Then, for backend, ask the scope:
 
@@ -60,5 +60,5 @@ Then, for backend, ask the scope:
 
 ## See also
 
-- `/scaffold-back` — backend scaffolding (general foundation or BC-specific)
-- `/scaffold-front` — frontend scaffolding only (project structure, services, test harness)
+- `/task-scaffold-back` — backend scaffolding (general foundation or BC-specific)
+- `/task-scaffold-front` — frontend scaffolding only (project structure, services, test harness)

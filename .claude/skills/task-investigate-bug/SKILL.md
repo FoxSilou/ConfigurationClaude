@@ -1,5 +1,5 @@
 ---
-name: investigate-bug
+name: task-investigate-bug
 description: Investigate a UI-reported bug across frontend and backend solutions before fixing
 user-invocable: true
 argument-hint: "<bug description and reproduction steps>"
@@ -7,14 +7,14 @@ context: fork
 agent: investigate-bug
 ---
 
-# /investigate-bug -> investigate-bug agent
+# /task-investigate-bug -> investigate-bug agent
 
 Delegates to the `investigate-bug` agent.
 
 ## Usage
 
 ```
-/investigate-bug <bug description and reproduction steps>
+/task-investigate-bug <bug description and reproduction steps>
 ```
 
 With screenshot attached in Claude Code:
@@ -50,5 +50,5 @@ workspace/
 ## Suggested follow-up
 
 ```
-/fix-bug context:docs/investigation-<...>.md <root cause description>
+/task-fix-bug-back context:docs/investigation-<...>.md <root cause description>
 ```

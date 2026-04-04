@@ -1,5 +1,5 @@
 ---
-name: bdd-workshop
+name: task-bdd-workshop
 description: BDD workshop — Example Mapping + Gherkin feature files from domain knowledge
 user-invocable: true
 argument-hint: "<feature or event-storming document>"
@@ -7,21 +7,21 @@ context: fork
 agent: bdd-workshop
 ---
 
-# /bdd-workshop -> bdd-workshop agent
+# /task-bdd-workshop -> bdd-workshop agent
 
 Delegates to the `bdd-workshop` agent.
 
 ## Usage
 
 ```
-/bdd-workshop <feature or event-storming document>
+/task-bdd-workshop <feature or event-storming document>
 ```
 
 ## Examples
 
 ```
-/bdd-workshop docs/event-storming-tournois-2026-03-27.md
-/bdd-workshop créer une partie de tournoi avec un nombre maximum de joueurs
+/task-bdd-workshop docs/event-storming-tournois-2026-03-27.md
+/task-bdd-workshop créer une partie de tournoi avec un nombre maximum de joueurs
 ```
 
 ## What this triggers
@@ -35,4 +35,4 @@ Delegates to the `bdd-workshop` agent.
 
 ## Suggested follow-up
 
-Run `/implement-feature` with the produced `.feature` file as input.
+Run `/task-implement-feature-back` with the produced `.feature` file as input.

@@ -1,5 +1,5 @@
 ---
-name: scaffold-back
+name: task-scaffold-back
 description: Scaffold infrastructure — general foundation or bounded context specific
 user-invocable: true
 argument-hint: "[bounded context name]"
@@ -7,7 +7,7 @@ context: fork
 agent: scaffold
 ---
 
-# /scaffold-back -> scaffold agent
+# /task-scaffold-back -> scaffold agent
 
 Delegates to the `scaffold` agent.
 

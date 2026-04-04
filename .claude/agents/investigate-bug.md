@@ -207,12 +207,12 @@ Wait for explicit user confirmation.
 
 Based on the confirmed diagnosis, instruct the user to invoke the appropriate fix-bug command:
 
-- **Backend fix** → `/fix-bug-back`
-- **Frontend fix** → `/fix-bug-front` (when available)
+- **Backend fix** → `/task-fix-bug-back`
+- **Frontend fix** → `/task-fix-bug-front` (when available)
 
 ### Frontend only
 ```
-/fix-bug-front (in workspace/frontend/)
+/task-fix-bug-front (in workspace/frontend/)
 Context: docs/investigation-<...>.md
 Bug: <description>
 Root cause: <precise location and description>
@@ -221,7 +221,7 @@ Test approach: bUnit (component logic) or Playwright (UI interaction path)
 
 ### Backend only
 ```
-/fix-bug-back (in workspace/backend/)
+/task-fix-bug-back (in workspace/backend/)
 Context: docs/investigation-<...>.md
 Bug: <description>
 Root cause: <precise location and description>
@@ -233,12 +233,12 @@ Test approach: E2E HTTP (WebApplicationFactory + TestContainers)
 Two fixes required:
 
 1. Backend fix first:
-   /fix-bug-back in workspace/backend/
+   /task-fix-bug-back in workspace/backend/
    Root cause: <backend issue>
    Test approach: E2E HTTP
 
 2. Frontend fix after backend is green:
-   /fix-bug-front in workspace/frontend/
+   /task-fix-bug-front in workspace/frontend/
    Root cause: <frontend issue>
    Test approach: bUnit / Playwright
 ```
