@@ -22,7 +22,32 @@
       "Read(//c/Users/cedric/.nuget/packages/**)",
       "Bash(mkdir:*)",
       "Bash(rm:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(mv event-storming:*)",
+      "Bash(mv bdd-workshop:*)",
+      "Bash(mv investigate-bug:*)",
+      "Bash(mv scaffold:*)",
+      "Bash(mv fix-bug-back:*)",
+      "Bash(mv implement-feature-back:*)",
+      "Bash(mv implement-feature-auto-back:*)",
+      "Bash(mv refactor-back:*)",
+      "Bash(mv scaffold-back:*)",
+      "Bash(mv scaffold-front:*)",
+      "Bash(curl -s \"https://www.google.com/search?q=%22event+sourcing%22+%22reconstitution%22+%22validation%22+%22value+object%22+evolving+rules\" -H \"User-Agent: Mozilla/5.0\")",
+      "WebSearch",
+      "WebFetch(domain:buildplease.com)",
+      "WebFetch(domain:serialized.io)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:event-driven.io)",
+      "WebFetch(domain:seabites.wordpress.com)",
+      "WebFetch(domain:leanpub.com)",
+      "WebFetch(domain:thinkbeforecoding.com)",
+      "WebFetch(domain:domaincentric.net)",
+      "WebFetch(domain:fsck.sh)",
+      "WebFetch(domain:www.withouthaste.com)",
+      "WebFetch(domain:artium.ai)",
+      "Bash(xargs grep:*)"
     ]
   }
 }

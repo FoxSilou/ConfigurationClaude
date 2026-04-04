@@ -108,9 +108,9 @@ public interface IPartieRepository
 
 The state rebuilder is the only new concept. It is a pure Infrastructure class that knows how to replay events into aggregate state. It bridges the gap between the event store (which stores events) and `Reconstituer` (which needs state parameters).
 
-### Fold into a state record, then Reconstituer
+### Fold into a primitive state accumulator, then Reconstituer
 
-A lightweight state record accumulates changes from events. Once all events are replayed, it passes the accumulated state to `Reconstituer`.
+A lightweight state class accumulates changes from events using **primitives only** (`Guid`, `string`, `int`, enums) — no Value Objects. This ensures no VO validation runs during the fold. Once all events are replayed, the accumulated primitives are converted to Value Objects via `Reconstituer` with **full validation**, and passed to the aggregate's `Reconstituer`.
 
 ```csharp
 // Infrastructure/EventStore/StateRebuilders/PartieStateRebuilder.cs
@@ -125,44 +125,49 @@ internal sealed class PartieStateRebuilder : IStateRebuilder<Partie, PartieId>
             switch (@event)
             {
                 case PartieCree e:
-                    state.Id = e.PartieId;
-                    state.Nom = e.Nom;
-                    state.Statut = StatutPartie.EnAttente;
+                    state.Id = e.PartieId.Valeur;        // VO → primitif
+                    state.Nom = e.Nom.Valeur;            // VO → primitif
+                    state.Statut = "EnAttente";
                     break;
 
                 case JoueurRejoint e:
-                    state.Joueurs.Add(e.JoueurId);
+                    state.Joueurs.Add(e.JoueurId.Valeur); // VO → primitif
                     break;
 
                 case JoueurParti e:
-                    state.Joueurs.Remove(e.JoueurId);
+                    state.Joueurs.Remove(e.JoueurId.Valeur);
                     break;
 
                 case PartieDemarree:
-                    state.Statut = StatutPartie.EnCours;
+                    state.Statut = "EnCours";
                     break;
 
                 case PartieTerminee:
-                    state.Statut = StatutPartie.Terminee;
+                    state.Statut = "Terminee";
                     break;
             }
         }
 
-        return Partie.Reconstituer(state.Id, state.Nom, state.Statut, state.Joueurs);
+        // VOs created via Reconstituer — full validation
+        return Partie.Reconstituer(
+            PartieId.Reconstituer(state.Id),
+            NomDePartie.Reconstituer(state.Nom),
+            StatutPartie.Reconstituer(state.Statut),
+            state.Joueurs.Select(JoueurId.Reconstituer));
     }
 
-    // Mutable state accumulator — internal to Infrastructure, never exposed
+    // Primitive accumulator — private, throwaway, pure Infrastructure
     private sealed class PartieState
     {
-        public PartieId Id { get; set; }
-        public NomDePartie Nom { get; set; } = default!;
-        public StatutPartie Statut { get; set; } = default!;
-        public List<JoueurId> Joueurs { get; } = [];
+        public Guid Id { get; set; }
+        public string Nom { get; set; } = default!;
+        public string Statut { get; set; } = default!;
+        public List<Guid> Joueurs { get; } = [];
     }
 }
 ```
 
-The state record is a throwaway accumulator — it lives as a private nested class inside the rebuilder. It uses mutable properties because it is Infrastructure plumbing, not domain code. The only output is a properly reconstituted aggregate via `Reconstituer`.
+The state class is a throwaway accumulator — it lives as a private nested class inside the rebuilder. It uses only primitives, never Value Objects. The conversion to domain types happens only at the final step, via `Reconstituer` on each VO with full validation.
 
 ## IStateRebuilder interface
 
@@ -316,6 +321,7 @@ internal sealed class PartieSnapshot
 - One `StateRebuilder` per aggregate. Follows a mechanical pattern, fully testable in isolation.
 - State mutation happens twice conceptually: once in business methods, once in the rebuilder. They must stay in sync. **Mitigate with round-trip integration tests** (create aggregate → capture events → rebuild → assert same observable state).
 - Version tracking is slightly less elegant (infra bookkeeping vs a clean `Version` property).
+- When business rules evolve in a breaking way (e.g., max length reduced), **event upcasters** are needed to transform historical events before replay. This is an explicit Infrastructure cost — the alternative (relaxing VO validation) would silently produce invalid aggregates.
 
 ## Testing
 

@@ -20,17 +20,7 @@ Event Sourcing stores **what happened** rather than **what the current state is*
 
 This approach gives you a complete audit trail, enables temporal queries, simplifies debugging (you can see exactly how the state was built), and naturally fits with CQRS — events on the write side feed projections on the read side.
 
-## Design principle: the domain does not know it is event-sourced
-
-How an aggregate is persisted (relational tables, document store, event stream) is an **infrastructure decision**, not a domain decision. The domain raises domain events because they are meaningful business facts — not because they serve as a persistence mechanism.
-
-This skill follows the **State Rebuilder** pattern (also known as "external fold"):
-- The aggregate uses the standard `AggregateRoot<TId>` base class — no `EventSourcedAggregate`, no `Apply`/`When`.
-- Business methods mutate state directly AND raise domain events, exactly as in state-based aggregates.
-- `Reconstituer` keeps all its parameters — identical to the EF Core version.
-- A **StateRebuilder** (Infrastructure) replays events through a fold, then calls `Reconstituer` to produce the aggregate.
-- Swapping from EF Core to Event Sourcing is a pure DI registration change — domain and application layers are untouched.
-- Event Sourcing is the **default** persistence strategy for new bounded contexts.
+> **Constraints** (domain purity, event immutability, version tracking, round-trip testing, naming) are enforced by the rule `event-sourcing.md` — always loaded, not repeated here.
 
 ## How this integrates with the existing architecture
 
@@ -51,7 +41,7 @@ The event sourcing mechanics live entirely in Infrastructure:
 
 ## When to use Event Sourcing vs state-based persistence
 
-Event sourcing is not the default — it is a deliberate choice per bounded context.
+Event Sourcing is the **default** persistence strategy for new bounded contexts, but it is a deliberate choice per bounded context.
 
 **Good fit**: audit requirements, complex state transitions, temporal queries needed, collaborative domains with conflict resolution, domains where "how we got here" matters as much as "where we are".
 
@@ -149,18 +139,8 @@ src/
                 └── PartieReadModel.cs
 ```
 
-## Key decisions and conventions
+## Key decisions
 
-**Naming** follows existing conventions — domain code in French, infrastructure in English:
-- Event store classes: `SqlEventStore`, `EventSourcedPartieRepository`, `StoredEvent`
-- State rebuilders: `PartieStateRebuilder` (Infrastructure, English)
-- Projections: `PartieProjection`, `ProjectionDispatcher`
-- Domain events: French past participle as always (`PartieCree`, `JoueurRejoint`)
-
-**Event versioning**: events are immutable once published. To evolve an event's shape, create a new event type (e.g., `PartieCreeV2`) and write an upcaster that transforms old events when loading. Never modify an existing event record.
-
-**Concurrency**: optimistic concurrency using a version number on the aggregate stream. The version is tracked by the repository (Infrastructure bookkeeping), not by the aggregate. If two commands try to append to the same stream at the same position, the second one fails.
+> Naming conventions, event immutability, version tracking, and round-trip testing rules are in `rules/event-sourcing.md`.
 
 **Snapshots**: optional optimization. A snapshot is simply the parameters of `Reconstituer`, serialized as JSON. When an aggregate's event count exceeds a configurable threshold, a snapshot is taken. On next load, `Reconstituer` is called from the snapshot, then only delta events are replayed through the rebuilder.
-
-**Round-trip testing**: the key test for each StateRebuilder — create an aggregate via business methods, capture its events, rebuild from those events, assert the same observable state. This catches synchronization drift between business methods and the rebuilder.

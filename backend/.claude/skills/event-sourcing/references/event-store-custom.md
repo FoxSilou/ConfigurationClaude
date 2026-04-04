@@ -106,7 +106,7 @@ public class ConcurrencyException(string streamId, int expectedVersion)
 
 ### Where to place infrastructure-shared types: `Shared.Write.Infrastructure`
 
-Some types are shared across bounded contexts but are infrastructure concerns, not domain concepts. Examples: `ConcurrencyException`, `EventSerializer`, `TypedIdConverterFactory`, `IStateRebuilder`.
+Some types are shared across bounded contexts but are infrastructure concerns, not domain concepts. Examples: `ConcurrencyException`, `EventSerializer`, `TypedIdConverterFactory`, `IStateRebuilder`, `IEventUpcaster`.
 
 These belong in `Shared.Write.Infrastructure` which references `Shared.Write.Domain` (for `IDomainEvent`, `IEventStore`, `ITypedId<T>`) and can take technical dependencies (System.Text.Json, EF Core abstractions).
 
@@ -124,7 +124,8 @@ src/
 │   ├── Exceptions/
 │   │   └── ConcurrencyException.cs
 │   ├── EventStore/
-│   │   └── IStateRebuilder.cs
+│   │   ├── IStateRebuilder.cs
+│   │   └── IEventUpcaster.cs
 │   ├── Serialization/
 │   │   ├── EventSerializer.cs
 │   │   ├── TypedIdConverter.cs
@@ -145,7 +146,8 @@ src/
 // Infrastructure/EventStore/SqlEventStore.cs
 internal sealed class SqlEventStore(
     EventStoreDbContext dbContext,
-    EventSerializer serializer) : IEventStore
+    EventSerializer serializer,
+    IEnumerable<IEventUpcaster> upcasters) : IEventStore
 {
     public async Task AppendToStreamAsync(
         string streamId,
@@ -189,9 +191,24 @@ internal sealed class SqlEventStore(
             .ToListAsync(ct);
 
         return storedEvents
-            .Select(e => serializer.Deserialize(e.EventType, e.Payload))
+            .Select(e =>
+            {
+                var payload = ApplyUpcasters(e.EventType, e.StreamVersion, e.Payload);
+                return serializer.Deserialize(e.EventType, payload);
+            })
             .ToList()
             .AsReadOnly();
+    }
+
+    private string ApplyUpcasters(string eventType, int version, string payload)
+    {
+        foreach (var upcaster in upcasters)
+        {
+            if (upcaster.CanUpcast(eventType, version))
+                payload = upcaster.Upcast(eventType, version, payload);
+        }
+
+        return payload;
     }
 
     public async Task<Snapshot?> LoadSnapshotAsync(
