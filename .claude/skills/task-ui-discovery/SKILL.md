@@ -36,4 +36,5 @@ Delegates to the `ui-discovery` agent.
 
 ## Suggested follow-up
 
-Run `/task-scaffold-front <feature area>` to wire infrastructure, then `/task-implement-feature-front` for TDD.
+Once all specs are ready (BDD + UI Discovery), run `/task-story-mapping` to organize tasks into ordered user stories.
+Then `/task-scaffold` to wire infrastructure, and implement stories in order with `/task-implement-feature-front` for TDD.

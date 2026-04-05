@@ -73,6 +73,7 @@ Readability is not a style preference — it is a design constraint. Naming matt
 | `@event-storming` | Domain discovery workshop — markdown + Excalidraw boards |
 | `@bdd-workshop` | BDD specification — Example Mapping + Gherkin feature files |
 | `@ui-discovery` | UI Discovery — screen inventory, user flows, Presenter specs |
+| `@story-mapping` | Story Mapping — ordered MVP roadmap from BDD + UI Discovery |
 | `@investigate-bug` | Cross-repo bug investigation (frontend + backend) |
 
 ### Backend agents
@@ -106,6 +107,7 @@ Reference skills (no prefix) provide domain knowledge loaded by agents.
 | `/task-bdd-workshop` | `@bdd-workshop` | Example Mapping + Gherkin feature files |
 | `/task-ui-discovery` | `@ui-discovery` | Screen inventory, user flows, Presenter specs |
 | `/task-investigate-bug` | `@investigate-bug` | Cross-repo bug investigation |
+| `/task-story-mapping` | `@story-mapping` | Ordered user stories from BDD + UI Discovery |
 | `/task-scaffold` | _(orchestrator)_ | Asks scope then delegates to backend and/or frontend |
 
 ### Backend
@@ -135,11 +137,14 @@ Reference skills (no prefix) provide domain knowledge loaded by agents.
        └── /task-ui-discovery         (screen specs → frontend tasks)
               |
               v
+       /task-story-mapping            (ordered MVP roadmap → user stories)
+              |
+              v
        /task-scaffold                 (backend + frontend infrastructure)
               |
-              ├── /task-implement-feature-back   (TDD domain)
+              ├── /task-implement-feature-back   (TDD domain — per story order)
               |
-              └── /task-implement-feature-front  (TDD Presenter)
+              └── /task-implement-feature-front  (TDD Presenter — per story order)
                      |
                      v
               /task-fix-bug-back      (bug fixing)

@@ -35,4 +35,5 @@ Delegates to the `bdd-workshop` agent.
 
 ## Suggested follow-up
 
-Run `/task-implement-feature-back` with the produced `.feature` file as input.
+Once all features are specified (BDD + UI Discovery), run `/task-story-mapping` to organize tasks into ordered user stories.
+If implementing a single feature directly, run `/task-implement-feature-back` with the produced `.feature` file as input.

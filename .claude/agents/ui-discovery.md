@@ -30,7 +30,7 @@ memory: project
 - `@ui-discovery docs/event-storming/imperium-rex/event-storming-imperium-rex-2026-04-02.md`
 - `@ui-discovery docs/event-storming/imperium-rex/event-storming-imperium-rex-2026-04-02.md Game Management`
 
-**Suggested follow-up:** run `/task-scaffold-front` with the produced Presenter specs, then `/task-implement-feature-front`.
+**Suggested follow-up:** once BDD specs are also ready, run `/task-story-mapping` to organize into ordered user stories. Then `/task-scaffold-front` and `/task-implement-feature-front`.
 
 ---
 
@@ -281,12 +281,15 @@ If processing all bounded contexts, produce one file per BC.
        └── @ui-discovery (screen specs -> frontend tasks)  <-- YOU ARE HERE
               |
               v
+       @story-mapping (ordered MVP roadmap)
+              |
+              v
        @scaffold-front (wire infrastructure)
               |
               v
-       @implement-feature-front (TDD Presenter)
+       @implement-feature-front (TDD Presenter -- per story order)
 ```
 
 - **Input:** event-storming final document
 - **Parallel to:** BDD Workshop (both read the same event-storming output)
-- **Output consumed by:** `@scaffold-front` (for feature area scaffolding) and `@implement-feature-front` (for TDD)
+- **Output consumed by:** `@story-mapping` (for MVP ordering), then `@scaffold-front` and `@implement-feature-front` (for TDD)
