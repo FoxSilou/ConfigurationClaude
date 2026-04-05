@@ -80,7 +80,7 @@ Readability is not a style preference — it is a design constraint. Naming matt
 
 | Agent | Description |
 |---|---|
-| `@scaffold` | Infrastructure scaffolding (general foundation or BC-specific) |
+| `@scaffold` | Infrastructure scaffolding (general foundation, BC-specific, or aggregate-specific) |
 | `@implement-feature` | TDD feature implementation (step-by-step or autonomous mode) |
 | `@fix-bug` | Test-first bug fixing |
 | `@refactor` | Iso-functional refactoring under green tests |
@@ -108,13 +108,11 @@ Reference skills (no prefix) provide domain knowledge loaded by agents.
 | `/task-ui-discovery` | `@ui-discovery` | Screen inventory, user flows, Presenter specs |
 | `/task-investigate-bug` | `@investigate-bug` | Cross-repo bug investigation |
 | `/task-story-mapping` | `@story-mapping` | Ordered user stories from BDD + UI Discovery |
-| `/task-scaffold` | _(orchestrator)_ | Asks scope then delegates to backend and/or frontend |
-
 ### Backend
 
 | Command | Agent | Description |
 |---|---|---|
-| `/task-scaffold-back` | `@scaffold` | Infrastructure scaffolding (general or BC-specific) |
+| `/task-scaffold-back` | `@scaffold` | Infrastructure scaffolding (general, BC-specific, or aggregate-specific) |
 | `/task-implement-feature-back` | `@implement-feature` | TDD step-by-step (user gate per RED/GREEN/REFACTOR) |
 | `/task-implement-feature-auto-back` | `@implement-feature` | TDD autonomous (single gate at the end) |
 | `/task-fix-bug-back` | `@fix-bug` | Test-first bug fixing |
@@ -140,8 +138,11 @@ Reference skills (no prefix) provide domain knowledge loaded by agents.
        /task-story-mapping            (ordered MVP roadmap → user stories)
               |
               v
-       /task-scaffold                 (backend + frontend infrastructure)
+       /task-scaffold-back             (backend infrastructure)
               |
+              ├── /task-scaffold-back <BC> <Aggregate>  (aggregate plumbing — per aggregate)
+              |         |
+              |         v
               ├── /task-implement-feature-back   (TDD domain — per story order)
               |
               └── /task-implement-feature-front  (TDD Presenter — per story order)

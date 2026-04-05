@@ -47,7 +47,10 @@
       "WebFetch(domain:fsck.sh)",
       "WebFetch(domain:www.withouthaste.com)",
       "WebFetch(domain:artium.ai)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "WebFetch(domain:resources.anthropic.com)",
+      "WebFetch(domain:platform.anthropic.com)",
+      "Bash(wc:*)"
     ]
   }
 }
