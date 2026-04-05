@@ -91,13 +91,16 @@ public interface IQueryBus
 ### Event Sourcing Abstractions
 
 ```csharp
+// Abstractions/StreamKey.cs
+public sealed record StreamKey(string EntityName, Guid EntityId);
+
 // Abstractions/IEventStore.cs
 public interface IEventStore
 {
-    Task AppendToStreamAsync(string streamId, IReadOnlyCollection<IDomainEvent> events, int expectedVersion, CancellationToken ct = default);
-    Task<IReadOnlyCollection<IDomainEvent>> ReadStreamAsync(string streamId, int fromVersion = 0, CancellationToken ct = default);
-    Task<Snapshot?> LoadSnapshotAsync(string streamId, CancellationToken ct = default);
-    Task SaveSnapshotAsync(string streamId, int version, object state, CancellationToken ct = default);
+    Task AppendToStreamAsync(StreamKey streamKey, IReadOnlyCollection<IDomainEvent> events, int expectedVersion, CancellationToken ct = default);
+    Task<IReadOnlyCollection<IDomainEvent>> ReadStreamAsync(StreamKey streamKey, int fromVersion = 0, CancellationToken ct = default);
+    Task<Snapshot?> LoadSnapshotAsync(StreamKey streamKey, CancellationToken ct = default);
+    Task SaveSnapshotAsync(StreamKey streamKey, int version, object state, CancellationToken ct = default);
 }
 
 public sealed record Snapshot(int Version, object State);

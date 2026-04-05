@@ -190,24 +190,24 @@ internal sealed class EventSourcedPartieRepository(
     PartieStateRebuilder rebuilder,
     IDomainEventBus domainEventBus) : IPartieRepository
 {
-    private readonly Dictionary<string, int> _versions = new();
+    private readonly Dictionary<StreamKey, int> _versions = new();
 
     public async Task<Partie?> ObtenirParIdAsync(PartieId id, CancellationToken ct = default)
     {
-        var streamId = ToStreamId(id);
+        var streamKey = ToStreamKey(id);
 
         // Try snapshot first
         var fromVersion = 0;
         Partie? baseAggregate = null;
-        var snapshot = await eventStore.LoadSnapshotAsync(streamId, ct);
+        var snapshot = await eventStore.LoadSnapshotAsync(streamKey, ct);
         if (snapshot is not null)
         {
             baseAggregate = ((PartieSnapshot)snapshot.State).ToAggregate();
             fromVersion = snapshot.Version + 1;
-            _versions[streamId] = snapshot.Version;
+            _versions[streamKey] = snapshot.Version;
         }
 
-        var events = await eventStore.ReadStreamAsync(streamId, fromVersion, ct);
+        var events = await eventStore.ReadStreamAsync(streamKey, fromVersion, ct);
 
         if (events.Count == 0 && baseAggregate is null) return null;
         if (events.Count == 0) return baseAggregate;
@@ -220,16 +220,16 @@ internal sealed class EventSourcedPartieRepository(
                 : CombineSnapshotAndDelta(baseAggregate, events))
             : baseAggregate!;
 
-        _versions[streamId] = fromVersion + events.Count - 1;
+        _versions[streamKey] = fromVersion + events.Count - 1;
         return aggregate;
     }
 
     public async Task AjouterAsync(Partie partie, CancellationToken ct = default)
     {
-        var streamId = ToStreamId(partie.Id);
+        var streamKey = ToStreamKey(partie.Id);
         var uncommitted = partie.DomainEvents.ToList();
 
-        await eventStore.AppendToStreamAsync(streamId, uncommitted, -1, ct);
+        await eventStore.AppendToStreamAsync(streamKey, uncommitted, -1, ct);
 
         await domainEventBus.PublierAsync(uncommitted, ct);
 
@@ -238,19 +238,19 @@ internal sealed class EventSourcedPartieRepository(
 
     public async Task MettreAJourAsync(Partie partie, CancellationToken ct = default)
     {
-        var streamId = ToStreamId(partie.Id);
+        var streamKey = ToStreamKey(partie.Id);
         var uncommitted = partie.DomainEvents.ToList();
-        var expectedVersion = _versions.GetValueOrDefault(streamId, -1);
+        var expectedVersion = _versions.GetValueOrDefault(streamKey, -1);
 
-        await eventStore.AppendToStreamAsync(streamId, uncommitted, expectedVersion, ct);
-        _versions[streamId] = expectedVersion + uncommitted.Count;
+        await eventStore.AppendToStreamAsync(streamKey, uncommitted, expectedVersion, ct);
+        _versions[streamKey] = expectedVersion + uncommitted.Count;
 
         await domainEventBus.PublierAsync(uncommitted, ct);
 
         partie.ClearDomainEvents();
     }
 
-    private static string ToStreamId(PartieId id) => $"Partie-{id.Valeur}";
+    private static StreamKey ToStreamKey(PartieId id) => new("Partie", id.Valeur);
 
     private static IReadOnlyCollection<IDomainEvent> CombineSnapshotAndDelta(
         Partie snapshotBase,
@@ -266,7 +266,7 @@ internal sealed class EventSourcedPartieRepository(
 
 ### Version tracking without polluting the aggregate
 
-The aggregate does not carry a `Version` property — optimistic concurrency is managed by the repository. The repository is registered as `Scoped`, so it tracks loaded versions in a dictionary keyed by stream ID. This works naturally with the existing DI lifetime.
+The aggregate does not carry a `Version` property — optimistic concurrency is managed by the repository. The repository is registered as `Scoped`, so it tracks loaded versions in a dictionary keyed by `StreamKey`. This works naturally with the existing DI lifetime.
 
 ## Snapshots
 

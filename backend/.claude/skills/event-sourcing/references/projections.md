@@ -126,10 +126,10 @@ internal sealed class EventSourcedPartieRepository(
 {
     public async Task AjouterAsync(Partie partie, CancellationToken ct = default)
     {
-        var streamId = $"Partie-{partie.Id.Valeur}";
+        var streamKey = ToStreamKey(partie.Id);
         var uncommitted = partie.DomainEvents.ToList();
 
-        await eventStore.AppendToStreamAsync(streamId, uncommitted, -1, ct);
+        await eventStore.AppendToStreamAsync(streamKey, uncommitted, -1, ct);
         await domainEventBus.PublierAsync(uncommitted, ct);
 
         partie.ClearDomainEvents();
@@ -137,15 +137,17 @@ internal sealed class EventSourcedPartieRepository(
 
     public async Task MettreAJourAsync(Partie partie, CancellationToken ct = default)
     {
-        var streamId = $"Partie-{partie.Id.Valeur}";
+        var streamKey = ToStreamKey(partie.Id);
         var uncommitted = partie.DomainEvents.ToList();
         var expectedVersion = partie.Version - uncommitted.Count;
 
-        await eventStore.AppendToStreamAsync(streamId, uncommitted, expectedVersion, ct);
+        await eventStore.AppendToStreamAsync(streamKey, uncommitted, expectedVersion, ct);
         await domainEventBus.PublierAsync(uncommitted, ct);
 
         partie.ClearDomainEvents();
     }
+
+    private static StreamKey ToStreamKey(PartieId id) => new("Partie", id.Valeur);
 }
 ```
 

@@ -31,7 +31,7 @@ This project follows the **State Rebuilder** pattern (also known as "external fo
 
 - **Optimistic concurrency uses a version number on the aggregate stream**, managed by the repository (Infrastructure bookkeeping), **not** by the aggregate.
 - The aggregate does not carry a `Version` property.
-- The repository is registered as `Scoped` and tracks loaded versions in a dictionary keyed by stream ID.
+- The repository is registered as `Scoped` and tracks loaded versions in a dictionary keyed by `StreamKey`.
 
 ### Round-trip testing
 

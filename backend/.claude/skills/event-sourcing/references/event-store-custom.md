@@ -13,22 +13,23 @@ This is an Infrastructure concern — the domain never references the event stor
 ```sql
 CREATE TABLE EventStore (
     Id                  BIGINT IDENTITY(1,1) PRIMARY KEY,  -- Global sequence
-    StreamId            NVARCHAR(250)   NOT NULL,           -- e.g. "Partie-{guid}"
+    EntityName          NVARCHAR(250)   NOT NULL,           -- Aggregate type, e.g. "Partie"
+    EntityId            UNIQUEIDENTIFIER NOT NULL,          -- Aggregate instance ID
     StreamVersion       INT             NOT NULL,           -- Position in stream (0-based)
     EventType           NVARCHAR(500)   NOT NULL,           -- CLR type discriminator
     Payload             NVARCHAR(MAX)   NOT NULL,           -- Serialized event (JSON)
     OccurredOn          DATETIMEOFFSET  NOT NULL,           -- From the domain event
     StoredAt            DATETIMEOFFSET  NOT NULL DEFAULT SYSDATETIMEOFFSET(),
 
-    CONSTRAINT UQ_Stream_Version UNIQUE (StreamId, StreamVersion)
+    CONSTRAINT UQ_Stream_Version UNIQUE (EntityName, EntityId, StreamVersion)
 );
 
-CREATE INDEX IX_EventStore_StreamId ON EventStore (StreamId);
+CREATE INDEX IX_EventStore_Stream ON EventStore (EntityName, EntityId);
 ```
 
-The `UNIQUE (StreamId, StreamVersion)` constraint enforces optimistic concurrency — two concurrent writes to the same stream at the same version will cause a conflict.
+The `UNIQUE (EntityName, EntityId, StreamVersion)` constraint enforces optimistic concurrency — two concurrent writes to the same stream at the same version will cause a conflict.
 
-**PostgreSQL variant**: replace `NVARCHAR` with `TEXT`, `BIGINT IDENTITY` with `BIGSERIAL`, `NVARCHAR(MAX)` with `JSONB` (enables JSON indexing), `DATETIMEOFFSET` with `TIMESTAMPTZ`, `SYSDATETIMEOFFSET()` with `NOW()`.
+**PostgreSQL variant**: replace `NVARCHAR` with `TEXT`, `BIGINT IDENTITY` with `BIGSERIAL`, `NVARCHAR(MAX)` with `JSONB` (enables JSON indexing), `UNIQUEIDENTIFIER` with `UUID`, `DATETIMEOFFSET` with `TIMESTAMPTZ`, `SYSDATETIMEOFFSET()` with `NOW()`.
 
 **SQL Server performance tip**: for high-throughput streams, consider adding `WITH (FILLFACTOR = 90)` on the unique constraint index to reduce page splits from frequent sequential inserts.
 
@@ -36,26 +37,30 @@ The `UNIQUE (StreamId, StreamVersion)` constraint enforces optimistic concurrenc
 
 ```sql
 CREATE TABLE AggregateSnapshots (
-    StreamId            NVARCHAR(250)   NOT NULL,
+    EntityName          NVARCHAR(250)   NOT NULL,
+    EntityId            UNIQUEIDENTIFIER NOT NULL,
     StreamVersion       INT             NOT NULL,           -- Version at which snapshot was taken
     SnapshotType        NVARCHAR(500)   NOT NULL,
     Payload             NVARCHAR(MAX)   NOT NULL,
     CreatedAt           DATETIMEOFFSET  NOT NULL DEFAULT SYSDATETIMEOFFSET(),
 
-    CONSTRAINT PK_Snapshots PRIMARY KEY (StreamId)          -- One snapshot per stream (latest)
+    CONSTRAINT PK_Snapshots PRIMARY KEY (EntityName, EntityId)  -- One snapshot per stream (latest)
 );
 ```
 
 ## Event Store port
 
 ```csharp
+// Shared.Write.Domain/Abstractions/StreamKey.cs
+public sealed record StreamKey(string EntityName, Guid EntityId);
+
 // Shared.Write.Domain/Abstractions/IEventStore.cs
 public interface IEventStore
 {
     /// <summary>
     /// Appends events to a stream, enforcing optimistic concurrency.
     /// </summary>
-    /// <param name="streamId">Aggregate stream identifier</param>
+    /// <param name="streamKey">Composite stream identifier (EntityName + EntityId)</param>
     /// <param name="events">Events to append</param>
     /// <param name="expectedVersion">
     /// The version the caller expects the stream to be at.
@@ -65,7 +70,7 @@ public interface IEventStore
     /// Thrown when the stream's current version does not match expectedVersion.
     /// </exception>
     Task AppendToStreamAsync(
-        string streamId,
+        StreamKey streamKey,
         IReadOnlyCollection<IDomainEvent> events,
         int expectedVersion,
         CancellationToken ct = default);
@@ -74,7 +79,7 @@ public interface IEventStore
     /// Reads all events from a stream, optionally starting from a given version.
     /// </summary>
     Task<IReadOnlyCollection<IDomainEvent>> ReadStreamAsync(
-        string streamId,
+        StreamKey streamKey,
         int fromVersion = 0,
         CancellationToken ct = default);
 
@@ -82,14 +87,14 @@ public interface IEventStore
     /// Loads the latest snapshot for a stream, if one exists.
     /// </summary>
     Task<Snapshot?> LoadSnapshotAsync(
-        string streamId,
+        StreamKey streamKey,
         CancellationToken ct = default);
 
     /// <summary>
     /// Saves a snapshot for a stream, replacing any existing snapshot.
     /// </summary>
     Task SaveSnapshotAsync(
-        string streamId,
+        StreamKey streamKey,
         int version,
         object state,
         CancellationToken ct = default);
@@ -100,8 +105,8 @@ public sealed record Snapshot(int Version, object State);
 // Shared.Write.Infrastructure/Exceptions/ConcurrencyException.cs
 // NOT in Shared.Write.Domain (pure domain) — this is an infrastructure concern (store conflict).
 // Lives in Shared.Write.Infrastructure.
-public class ConcurrencyException(string streamId, int expectedVersion)
-    : Exception($"Concurrency conflict on stream '{streamId}' at expected version {expectedVersion}.");
+public class ConcurrencyException(string message)
+    : Exception(message);
 ```
 
 ### Where to place infrastructure-shared types: `Shared.Write.Infrastructure`
@@ -150,18 +155,19 @@ internal sealed class SqlEventStore(
     IEnumerable<IEventUpcaster> upcasters) : IEventStore
 {
     public async Task AppendToStreamAsync(
-        string streamId,
+        StreamKey streamKey,
         IReadOnlyCollection<IDomainEvent> events,
         int expectedVersion,
         CancellationToken ct = default)
     {
         // Optimistic concurrency check
         var currentVersion = await dbContext.Events
-            .Where(e => e.StreamId == streamId)
+            .Where(e => e.EntityName == streamKey.EntityName && e.EntityId == streamKey.EntityId)
             .MaxAsync(e => (int?)e.StreamVersion, ct) ?? -1;
 
         if (currentVersion != expectedVersion)
-            throw new ConcurrencyException(streamId, expectedVersion);
+            throw new ConcurrencyException(
+                $"Concurrency conflict on stream '{streamKey.EntityName}/{streamKey.EntityId}' at expected version {expectedVersion}.");
 
         var version = expectedVersion;
         foreach (var @event in events)
@@ -169,7 +175,8 @@ internal sealed class SqlEventStore(
             version++;
             dbContext.Events.Add(new StoredEvent
             {
-                StreamId = streamId,
+                EntityName = streamKey.EntityName,
+                EntityId = streamKey.EntityId,
                 StreamVersion = version,
                 EventType = serializer.GetDiscriminator(@event),
                 Payload = serializer.Serialize(@event),
@@ -181,12 +188,12 @@ internal sealed class SqlEventStore(
     }
 
     public async Task<IReadOnlyCollection<IDomainEvent>> ReadStreamAsync(
-        string streamId,
+        StreamKey streamKey,
         int fromVersion = 0,
         CancellationToken ct = default)
     {
         var storedEvents = await dbContext.Events
-            .Where(e => e.StreamId == streamId && e.StreamVersion >= fromVersion)
+            .Where(e => e.EntityName == streamKey.EntityName && e.EntityId == streamKey.EntityId && e.StreamVersion >= fromVersion)
             .OrderBy(e => e.StreamVersion)
             .ToListAsync(ct);
 
@@ -212,11 +219,11 @@ internal sealed class SqlEventStore(
     }
 
     public async Task<Snapshot?> LoadSnapshotAsync(
-        string streamId,
+        StreamKey streamKey,
         CancellationToken ct = default)
     {
         var stored = await dbContext.Snapshots
-            .FirstOrDefaultAsync(s => s.StreamId == streamId, ct);
+            .FirstOrDefaultAsync(s => s.EntityName == streamKey.EntityName && s.EntityId == streamKey.EntityId, ct);
 
         if (stored is null) return null;
 
@@ -225,13 +232,13 @@ internal sealed class SqlEventStore(
     }
 
     public async Task SaveSnapshotAsync(
-        string streamId,
+        StreamKey streamKey,
         int version,
         object state,
         CancellationToken ct = default)
     {
         var existing = await dbContext.Snapshots
-            .FirstOrDefaultAsync(s => s.StreamId == streamId, ct);
+            .FirstOrDefaultAsync(s => s.EntityName == streamKey.EntityName && s.EntityId == streamKey.EntityId, ct);
 
         var typeName = state.GetType().AssemblyQualifiedName!;
         var payload = serializer.SerializeSnapshot(state);
@@ -246,7 +253,8 @@ internal sealed class SqlEventStore(
         {
             dbContext.Snapshots.Add(new AggregateSnapshot
             {
-                StreamId = streamId,
+                EntityName = streamKey.EntityName,
+                EntityId = streamKey.EntityId,
                 StreamVersion = version,
                 SnapshotType = typeName,
                 Payload = payload
@@ -271,7 +279,9 @@ internal sealed class StoredEvent
 
     [Required]
     [MaxLength(250)]
-    public required string StreamId { get; set; }
+    public required string EntityName { get; set; }
+
+    public required Guid EntityId { get; set; }
 
     public required int StreamVersion { get; set; }
 
@@ -291,9 +301,11 @@ internal sealed class StoredEvent
 [Table("AggregateSnapshots")]
 internal sealed class AggregateSnapshot
 {
-    [Key]
+    [Required]
     [MaxLength(250)]
-    public required string StreamId { get; set; }
+    public required string EntityName { get; set; }
+
+    public required Guid EntityId { get; set; }
 
     public required int StreamVersion { get; set; }
 
@@ -488,13 +500,14 @@ internal sealed class EventStoreDbContext(DbContextOptions<EventStoreDbContext> 
     {
         modelBuilder.Entity<StoredEvent>(entity =>
         {
-            entity.HasIndex(e => e.StreamId);
-            entity.HasIndex(e => new { e.StreamId, e.StreamVersion }).IsUnique();
+            entity.HasIndex(e => new { e.EntityName, e.EntityId });
+            entity.HasIndex(e => new { e.EntityName, e.EntityId, e.StreamVersion }).IsUnique();
             entity.Property(e => e.StoredAt).HasDefaultValueSql("SYSDATETIMEOFFSET()");
         });
 
         modelBuilder.Entity<AggregateSnapshot>(entity =>
         {
+            entity.HasKey(e => new { e.EntityName, e.EntityId });
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("SYSDATETIMEOFFSET()");
         });
     }
