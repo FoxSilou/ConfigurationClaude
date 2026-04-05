@@ -72,6 +72,7 @@ Readability is not a style preference — it is a design constraint. Naming matt
 |---|---|
 | `@event-storming` | Domain discovery workshop — markdown + Excalidraw boards |
 | `@bdd-workshop` | BDD specification — Example Mapping + Gherkin feature files |
+| `@ui-discovery` | UI Discovery — screen inventory, user flows, Presenter specs |
 | `@investigate-bug` | Cross-repo bug investigation (frontend + backend) |
 
 ### Backend agents
@@ -88,6 +89,7 @@ Readability is not a style preference — it is a design constraint. Naming matt
 | Agent | Description |
 |---|---|
 | `@scaffold-front` | Frontend infrastructure scaffolding (project, services, test harness) |
+| `@implement-feature-front` | TDD Presenter implementation (step-by-step or autonomous mode) |
 
 ---
 
@@ -102,6 +104,7 @@ Reference skills (no prefix) provide domain knowledge loaded by agents.
 |---|---|---|
 | `/task-event-storming` | `@event-storming` | Domain discovery workshop |
 | `/task-bdd-workshop` | `@bdd-workshop` | Example Mapping + Gherkin feature files |
+| `/task-ui-discovery` | `@ui-discovery` | Screen inventory, user flows, Presenter specs |
 | `/task-investigate-bug` | `@investigate-bug` | Cross-repo bug investigation |
 | `/task-scaffold` | _(orchestrator)_ | Asks scope then delegates to backend and/or frontend |
 
@@ -120,9 +123,24 @@ Reference skills (no prefix) provide domain knowledge loaded by agents.
 | Command | Agent | Description |
 |---|---|---|
 | `/task-scaffold-front` | `@scaffold-front` | Frontend project structure + test harness |
+| `/task-implement-feature-front` | `@implement-feature-front` | TDD Presenter step-by-step (or autonome) |
 
 ### Typical workflow
 
 ```
-/task-event-storming → /task-bdd-workshop → /task-scaffold → /task-implement-feature-back → /task-fix-bug-back
+/task-event-storming
+       |
+       ├── /task-bdd-workshop        (domain specs → backend tasks)
+       |
+       └── /task-ui-discovery         (screen specs → frontend tasks)
+              |
+              v
+       /task-scaffold                 (backend + frontend infrastructure)
+              |
+              ├── /task-implement-feature-back   (TDD domain)
+              |
+              └── /task-implement-feature-front  (TDD Presenter)
+                     |
+                     v
+              /task-fix-bug-back      (bug fixing)
 ```

@@ -40,6 +40,7 @@ The frontend follows a clean separation between:
 | Command | Description |
 |---|---|
 | `/task-scaffold-front` | Frontend project structure + test harness (bUnit + Playwright) |
+| `/task-implement-feature-front` | TDD Presenter step-by-step (or autonome) |
 
 ## Expected Behavior
 
