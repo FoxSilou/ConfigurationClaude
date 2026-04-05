@@ -46,7 +46,8 @@ This project follows the **State Rebuilder** pattern (also known as "external fo
 | Event store classes | English, technical | `SqlEventStore`, `StoredEvent`, `EventStoreDbContext` |
 | Event-sourced repository | `EventSourced` + aggregate name | `EventSourcedPartieRepository` |
 | State rebuilder | Aggregate name + `StateRebuilder` | `PartieStateRebuilder` |
-| Projections | Aggregate name + `Projection` / `ProjectionDispatcher` | `PartieProjection`, `ProjectionDispatcher` |
+| Event handlers (projections) | Event name + `Projection` | `PartieCreeProjection`, `JoueurRejointProjection` |
+| Domain event bus | `IDomainEventBus` / `MediatRDomainEventBus` | Port in Shared.Write.Domain, adapter in Shared.Write.Infrastructure |
 | Domain events | French past participle (unchanged) | `PartieCree`, `JoueurRejoint` |
 | Snapshot class | Aggregate name + `Snapshot` | `PartieSnapshot` |
 

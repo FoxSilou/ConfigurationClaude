@@ -89,7 +89,8 @@ src/
 │   │   │   ├── ITypedId.cs
 │   │   │   ├── Abstractions/
 │   │   │   │   ├── IEventStore.cs
-│   │   │   │   └── IProjection.cs
+│   │   │   │   ├── IDomainEventHandler.cs
+│   │   │   │   └── IDomainEventBus.cs
 │   │   │   └── Exceptions/
 │   │   │       └── DomainException.cs
 │   │   └── Shared.Write.Infrastructure.csproj         ← Technical, references Shared.Write.Domain
@@ -124,17 +125,17 @@ src/
     │       │   │   └── AggregateSnapshot.cs
     │       │   └── StateRebuilders/
     │       │       └── PartieStateRebuilder.cs         ← Folds events → calls Reconstituer
-    │       ├── Persistence/
-    │       │   └── EventSourcedPartieRepository.cs
-    │       └── Projections/
-    │           ├── PartieProjection.cs
-    │           └── ProjectionDispatcher.cs
+    │       └── Persistence/
+    │           └── EventSourcedPartieRepository.cs
     └── Read/
         ├── <BC>.Read.Application.csproj
         │   ├── ObtenirPartie.cs
         │   └── Ports/
         └── <BC>.Read.Infrastructure.csproj
             ├── ReadDbContext.cs
+            ├── Projections/
+            │   ├── PartieCreeProjection.cs              ← IDomainEventHandler<PartieCree>
+            │   └── JoueurRejointProjection.cs           ← IDomainEventHandler<JoueurRejoint>
             └── ReadModels/
                 └── PartieReadModel.cs
 ```

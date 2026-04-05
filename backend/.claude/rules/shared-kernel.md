@@ -1,5 +1,5 @@
 ---
-description: "Shared.Write.Domain — shared abstractions across bounded contexts (AggregateRoot, ICommand, IQuery, ICommandBus, IEventStore, IProjection, ITypedId)"
+description: "Shared.Write.Domain — shared abstractions across bounded contexts (AggregateRoot, ICommand, IQuery, ICommandBus, IEventStore, IDomainEventHandler, IDomainEventBus, ITypedId)"
 alwaysApply: true
 globs: ["**/Shared.Write.Domain/**/*.cs", "**/Shared/Write/**/*.cs"]
 ---
@@ -102,11 +102,16 @@ public interface IEventStore
 
 public sealed record Snapshot(int Version, object State);
 
-// Abstractions/IProjection.cs
-public interface IProjection
+// Abstractions/IDomainEventHandler.cs
+public interface IDomainEventHandler<in TEvent> where TEvent : IDomainEvent
 {
-    IReadOnlyCollection<Type> EventTypes { get; }
-    Task ProjectAsync(IDomainEvent @event, CancellationToken ct = default);
+    Task HandleAsync(TEvent @event, CancellationToken ct = default);
+}
+
+// Abstractions/IDomainEventBus.cs
+public interface IDomainEventBus
+{
+    Task PublierAsync(IReadOnlyCollection<IDomainEvent> events, CancellationToken ct = default);
 }
 ```
 
@@ -142,7 +147,8 @@ src/Shared/Write/Shared.Write.Domain.csproj
 │   ├── IQuery.cs
 │   ├── IQueryBus.cs
 │   ├── IEventStore.cs
-│   └── IProjection.cs
+│   ├── IDomainEventHandler.cs
+│   └── IDomainEventBus.cs
 └── Exceptions/
     ├── DomainException.cs
     └── NotFoundException.cs

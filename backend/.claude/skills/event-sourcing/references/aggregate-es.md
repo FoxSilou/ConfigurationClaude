@@ -188,7 +188,7 @@ public interface IStateRebuilder<TAggregate, TId>
 internal sealed class EventSourcedPartieRepository(
     IEventStore eventStore,
     PartieStateRebuilder rebuilder,
-    ProjectionDispatcher? projectionDispatcher = null) : IPartieRepository
+    IDomainEventBus domainEventBus) : IPartieRepository
 {
     private readonly Dictionary<string, int> _versions = new();
 
@@ -231,8 +231,7 @@ internal sealed class EventSourcedPartieRepository(
 
         await eventStore.AppendToStreamAsync(streamId, uncommitted, -1, ct);
 
-        if (projectionDispatcher is not null)
-            await projectionDispatcher.DispatchAsync(uncommitted, ct);
+        await domainEventBus.PublierAsync(uncommitted, ct);
 
         partie.ClearDomainEvents();
     }
@@ -246,8 +245,7 @@ internal sealed class EventSourcedPartieRepository(
         await eventStore.AppendToStreamAsync(streamId, uncommitted, expectedVersion, ct);
         _versions[streamId] = expectedVersion + uncommitted.Count;
 
-        if (projectionDispatcher is not null)
-            await projectionDispatcher.DispatchAsync(uncommitted, ct);
+        await domainEventBus.PublierAsync(uncommitted, ct);
 
         partie.ClearDomainEvents();
     }

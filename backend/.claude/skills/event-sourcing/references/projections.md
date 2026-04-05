@@ -22,69 +22,72 @@ Best for: high-throughput systems, multiple read models per stream, read models 
 
 **Start with inline projections** unless you have a specific reason for async. You can always switch later — the projection logic itself is identical, only the dispatch mechanism changes.
 
-## Projection interface
+## Domain Event Handler interface
+
+Projections implement strongly-typed `IDomainEventHandler<TEvent>` — one handler per event type. No casting, no type-checking, no `EventTypes` property.
 
 ```csharp
-// Shared.Write.Domain/Abstractions/IProjection.cs
-public interface IProjection
+// Shared.Write.Domain/Abstractions/IDomainEventHandler.cs
+public interface IDomainEventHandler<in TEvent> where TEvent : IDomainEvent
 {
-    /// <summary>
-    /// Returns the event types this projection is interested in.
-    /// Used by the dispatcher to route events efficiently.
-    /// </summary>
-    IReadOnlyCollection<Type> EventTypes { get; }
-
-    /// <summary>
-    /// Projects a single event into the read model.
-    /// Must be idempotent — replaying the same event twice produces the same result.
-    /// </summary>
-    Task ProjectAsync(IDomainEvent @event, CancellationToken ct = default);
+    Task HandleAsync(TEvent @event, CancellationToken ct = default);
 }
 ```
+
+## Domain Event Bus
+
+The bus dispatches domain events to all registered handlers. It is a port defined in Shared.Write.Domain, with its MediatR adapter in Shared.Write.Infrastructure.
+
+```csharp
+// Shared.Write.Domain/Abstractions/IDomainEventBus.cs
+public interface IDomainEventBus
+{
+    Task PublierAsync(IReadOnlyCollection<IDomainEvent> events, CancellationToken ct = default);
+}
+```
+
+The `MediatRDomainEventBus` adapter wraps each domain event in a `DomainEventNotification<TEvent>` (an `INotification`) and publishes it via MediatR. A `DomainEventNotificationHandler<TEvent>` bridges `IDomainEventHandler<TEvent>` to `INotificationHandler<DomainEventNotification<TEvent>>`.
+
+This follows the same pattern as `ICommandBus` → `MediatRCommandBus` → `CommandRequest<T>` → `CommandRequestHandler<T>`.
 
 ## Inline projection example
 
 ```csharp
-// Infrastructure/Projections/PartieProjection.cs
-internal sealed class PartieProjection(ReadDbContext readDb) : IProjection
+// Read/Infrastructure/Projections/PartieCreeProjection.cs
+internal sealed class PartieCreeProjection(ReadDbContext readDb)
+    : IDomainEventHandler<PartieCree>
 {
-    public IReadOnlyCollection<Type> EventTypes =>
-    [
-        typeof(PartieCree),
-        typeof(JoueurRejoint),
-        typeof(PartieDemarree)
-    ];
-
-    public async Task ProjectAsync(IDomainEvent @event, CancellationToken ct = default)
+    public async Task HandleAsync(PartieCree @event, CancellationToken ct = default)
     {
-        switch (@event)
+        readDb.Parties.Add(new PartieReadModel
         {
-            case PartieCree e:
-                readDb.Parties.Add(new PartieReadModel
-                {
-                    Id = e.PartieId.Valeur,
-                    Nom = e.Nom.Valeur,
-                    Statut = "EnAttente",
-                    NombreDeJoueurs = 0,
-                    CreeLe = e.OccurredOn
-                });
-                break;
+            Id = @event.PartieId.Valeur,
+            Nom = @event.Nom.Valeur,
+            Statut = "EnAttente",
+            NombreDeJoueurs = 0,
+            CreeLe = @event.OccurredOn
+        });
 
-            case JoueurRejoint e:
-                var partieJoueur = await readDb.Parties.FindAsync([e.PartieId.Valeur], ct);
-                if (partieJoueur is not null)
-                    partieJoueur.NombreDeJoueurs++;
-                break;
+        await readDb.SaveChangesAsync(ct);
+    }
+}
 
-            case PartieDemarree e:
-                var partieDemarree = await readDb.Parties.FindAsync([e.PartieId.Valeur], ct);
-                if (partieDemarree is not null)
-                    partieDemarree.Statut = "EnCours";
-                break;
-        }
+// Read/Infrastructure/Projections/JoueurRejointProjection.cs
+internal sealed class JoueurRejointProjection(ReadDbContext readDb)
+    : IDomainEventHandler<JoueurRejoint>
+{
+    public async Task HandleAsync(JoueurRejoint @event, CancellationToken ct = default)
+    {
+        var partie = await readDb.Parties.FindAsync([@event.PartieId.Valeur], ct);
+        if (partie is not null)
+            partie.NombreDeJoueurs++;
+
+        await readDb.SaveChangesAsync(ct);
     }
 }
 ```
+
+Each handler is a single class responsible for one event type. This follows SRP and provides compile-time type safety — no casts, no switch statements.
 
 ## Read model
 
@@ -112,53 +115,22 @@ internal sealed class PartieReadModel
 
 The read model is a flat, denormalized table optimized for queries. It uses primitives (not Value Objects) because it belongs to the Read side.
 
-## Projection dispatcher — inline
+## Wiring into the event store
 
-The dispatcher hooks into the event persistence pipeline. After events are appended to the store, it routes each event to the appropriate projections.
-
-```csharp
-// Infrastructure/Projections/ProjectionDispatcher.cs
-internal sealed class ProjectionDispatcher(IEnumerable<IProjection> projections)
-{
-    private readonly ILookup<Type, IProjection> _projectionsByEventType =
-        projections
-            .SelectMany(p => p.EventTypes.Select(et => (EventType: et, Projection: p)))
-            .ToLookup(x => x.EventType, x => x.Projection);
-
-    public async Task DispatchAsync(
-        IReadOnlyCollection<IDomainEvent> events,
-        CancellationToken ct = default)
-    {
-        foreach (var @event in events)
-        {
-            var eventType = @event.GetType();
-            foreach (var projection in _projectionsByEventType[eventType])
-            {
-                await projection.ProjectAsync(@event, ct);
-            }
-        }
-    }
-}
-```
-
-### Wiring into the event store
-
-For inline projections, the dispatcher is called right after `AppendToStreamAsync` succeeds, in the same scope. One approach is to wrap it in the repository:
+For inline projections, the `IDomainEventBus` is called right after `AppendToStreamAsync` succeeds, in the same scope. The repository uses the bus port:
 
 ```csharp
 internal sealed class EventSourcedPartieRepository(
     IEventStore eventStore,
-    ProjectionDispatcher projectionDispatcher) : IPartieRepository
+    IDomainEventBus domainEventBus) : IPartieRepository
 {
-    // ... ObtenirParIdAsync unchanged ...
-
     public async Task AjouterAsync(Partie partie, CancellationToken ct = default)
     {
         var streamId = $"Partie-{partie.Id.Valeur}";
         var uncommitted = partie.DomainEvents.ToList();
 
         await eventStore.AppendToStreamAsync(streamId, uncommitted, -1, ct);
-        await projectionDispatcher.DispatchAsync(uncommitted, ct);
+        await domainEventBus.PublierAsync(uncommitted, ct);
 
         partie.ClearDomainEvents();
     }
@@ -170,28 +142,14 @@ internal sealed class EventSourcedPartieRepository(
         var expectedVersion = partie.Version - uncommitted.Count;
 
         await eventStore.AppendToStreamAsync(streamId, uncommitted, expectedVersion, ct);
-        await projectionDispatcher.DispatchAsync(uncommitted, ct);
+        await domainEventBus.PublierAsync(uncommitted, ct);
 
         partie.ClearDomainEvents();
     }
 }
 ```
 
-An alternative (cleaner, but more complex) is a MediatR pipeline behavior that dispatches projections after persistence — this keeps the repository free from projection concerns.
-
-### Who calls SaveChanges on ReadDbContext?
-
-The projection methods modify EF Core tracked entities but do **not** call `SaveChangesAsync` themselves. This keeps them composable — multiple projections can process the same batch of events, and a single `SaveChangesAsync` persists all changes atomically.
-
-The caller is responsible for saving. In the inline approach, the repository does it after dispatching:
-
-```csharp
-await eventStore.AppendToStreamAsync(streamId, uncommitted, expectedVersion, ct);
-await projectionDispatcher.DispatchAsync(uncommitted, ct);
-await readDb.SaveChangesAsync(ct); // Persists all read model changes in one roundtrip
-```
-
-In the async worker approach, the worker calls `SaveChangesAsync` after processing each batch (this is already shown in the worker code below).
+The repository depends on `IDomainEventBus` (a domain port), not on any concrete dispatcher or MediatR type.
 
 ## Async projections
 
@@ -233,43 +191,46 @@ internal sealed class AsyncProjectionWorker(
             try
             {
                 using var scope = scopeFactory.CreateScope();
-                var dbContext = scope.ServiceProvider.GetRequiredService<EventStoreDbContext>();
+                var publisher = scope.ServiceProvider.GetRequiredService<IDomainEventBus>();
+                var eventStoreDb = scope.ServiceProvider.GetRequiredService<EventStoreDbContext>();
                 var readDb = scope.ServiceProvider.GetRequiredService<ReadDbContext>();
                 var serializer = scope.ServiceProvider.GetRequiredService<EventSerializer>();
-                var projections = scope.ServiceProvider.GetServices<IProjection>().ToList();
-                var dispatcher = new ProjectionDispatcher(projections);
+                var mapper = scope.ServiceProvider.GetRequiredService<IEventPayloadMapper>();
 
-                foreach (var projection in projections)
+                // Load checkpoint
+                var checkpoint = await readDb.ProjectionCheckpoints
+                    .FirstOrDefaultAsync(c => c.ProjectionName == "Global", stoppingToken)
+                    ?? new ProjectionCheckpoint { ProjectionName = "Global", LastProcessedEventId = 0 };
+
+                // Fetch new events
+                var newEvents = await eventStoreDb.Events
+                    .Where(e => e.Id > checkpoint.LastProcessedEventId)
+                    .OrderBy(e => e.Id)
+                    .Take(BatchSize)
+                    .ToListAsync(stoppingToken);
+
+                if (newEvents.Count == 0)
                 {
-                    var projectionName = projection.GetType().Name;
-                    var checkpoint = await readDb.ProjectionCheckpoints
-                        .FirstOrDefaultAsync(c => c.ProjectionName == projectionName, stoppingToken)
-                        ?? new ProjectionCheckpoint { ProjectionName = projectionName, LastProcessedEventId = 0 };
-
-                    var newEvents = await dbContext.Events
-                        .Where(e => e.Id > checkpoint.LastProcessedEventId)
-                        .OrderBy(e => e.Id)
-                        .Take(BatchSize)
-                        .ToListAsync(stoppingToken);
-
-                    if (newEvents.Count == 0) continue;
-
-                    var domainEvents = newEvents
-                        .Where(e => projection.EventTypes.Any(t => t.Name == e.EventType))
-                        .Select(e => serializer.Deserialize(e.EventType, e.Payload))
-                        .ToList();
-
-                    foreach (var @event in domainEvents)
-                        await projection.ProjectAsync(@event, stoppingToken);
-
-                    checkpoint.LastProcessedEventId = newEvents.Last().Id;
-                    checkpoint.UpdatedAt = DateTimeOffset.UtcNow;
-
-                    if (readDb.Entry(checkpoint).State == EntityState.Detached)
-                        readDb.ProjectionCheckpoints.Add(checkpoint);
-
-                    await readDb.SaveChangesAsync(stoppingToken);
+                    await Task.Delay(PollingInterval, stoppingToken);
+                    continue;
                 }
+
+                // Deserialize and dispatch through the bus
+                var domainEvents = newEvents
+                    .Select(e => serializer.Deserialize(e.EventType, e.Payload))
+                    .OfType<IDomainEvent>()
+                    .ToList();
+
+                await publisher.PublierAsync(domainEvents, stoppingToken);
+
+                // Update checkpoint
+                checkpoint.LastProcessedEventId = newEvents.Last().Id;
+                checkpoint.UpdatedAt = DateTimeOffset.UtcNow;
+
+                if (readDb.Entry(checkpoint).State == EntityState.Detached)
+                    readDb.ProjectionCheckpoints.Add(checkpoint);
+
+                await readDb.SaveChangesAsync(stoppingToken);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {
@@ -282,59 +243,12 @@ internal sealed class AsyncProjectionWorker(
 }
 ```
 
-## Projection rebuild
-
-One of the great benefits of event sourcing: read models can be rebuilt from scratch at any time by replaying all events through the projections.
-
-```csharp
-// Infrastructure/Projections/ProjectionRebuilder.cs
-internal sealed class ProjectionRebuilder(
-    EventStoreDbContext eventStoreDb,
-    ReadDbContext readDb,
-    EventSerializer serializer)
-{
-    public async Task RebuildAsync<TProjection>(
-        TProjection projection,
-        CancellationToken ct = default) where TProjection : IProjection
-    {
-        // 1. Clear the read model tables this projection owns
-        //    (implementation depends on which tables — could be a method on the projection)
-
-        // 2. Reset checkpoint
-        var projectionName = typeof(TProjection).Name;
-        var checkpoint = await readDb.ProjectionCheckpoints
-            .FirstOrDefaultAsync(c => c.ProjectionName == projectionName, ct);
-
-        if (checkpoint is not null)
-            checkpoint.LastProcessedEventId = 0;
-
-        // 3. Replay all relevant events
-        var relevantTypes = projection.EventTypes.Select(t => t.Name).ToHashSet();
-
-        var events = await eventStoreDb.Events
-            .Where(e => relevantTypes.Contains(e.EventType))
-            .OrderBy(e => e.Id)
-            .ToListAsync(ct);
-
-        foreach (var storedEvent in events)
-        {
-            var domainEvent = serializer.Deserialize(storedEvent.EventType, storedEvent.Payload);
-            await projection.ProjectAsync(domainEvent, ct);
-        }
-
-        await readDb.SaveChangesAsync(ct);
-    }
-}
-```
-
-For large event stores, process events in batches to avoid loading everything in memory.
-
 ## Idempotency
 
 Projections **must be idempotent** — applying the same event twice should produce the same result. This is critical because:
 - Async projections might process the same event on retry after a failure
 - Rebuilding replays all events from scratch
-- The dispatcher might (in edge cases) deliver duplicates
+- The bus might (in edge cases) deliver duplicates
 
 Strategies for idempotency:
 - **Upsert** instead of insert (use the aggregate Id as the primary key)
@@ -346,8 +260,8 @@ Strategies for idempotency:
 Projections write to the same `ReadDbContext` that query handlers read from. The existing pattern is preserved:
 
 ```
-Events → ProjectionDispatcher → IProjection → ReadDbContext (writes)
-                                                    ↑
+Events → IDomainEventBus → IDomainEventHandler<T> → ReadDbContext (writes)
+                                                          ↑
 Query handler → IQueryHandler → ReadDbContext (reads) → PartieDto
 ```
 
@@ -356,23 +270,26 @@ Query handlers don't know or care that the data comes from projections rather th
 ## DI Registration
 
 ```csharp
-// Register projections
-services.AddScoped<IProjection, PartieProjection>();
-services.AddScoped<IProjection, JoueurProjection>();
-
-// Register dispatcher
-services.AddScoped<ProjectionDispatcher>();
+// In the composition root (Api/Program.cs)
+// Auto-discovers all IDomainEventHandler<T> implementations in the given assemblies
+// and registers both the handler and its MediatR notification adapter
+services.AddDomainEventHandlers(typeof(ReadInfraMarkerType).Assembly);
 
 // For async projections
 services.AddHostedService<AsyncProjectionWorker>();
 ```
 
+The `AddDomainEventHandlers` method (defined in `Shared.Write.Infrastructure`) scans assemblies for `IDomainEventHandler<T>` implementations and registers:
+1. `IDomainEventHandler<TEvent>` → concrete handler (Scoped)
+2. `INotificationHandler<DomainEventNotification<TEvent>>` → `DomainEventNotificationHandler<TEvent>` (Transient)
+3. `IDomainEventBus` → `MediatRDomainEventBus` (Scoped)
+
 ## Naming conventions
 
 | Element | Convention | Example |
 |---|---|---|
-| Projection class | Aggregate name + `Projection` | `PartieProjection` |
+| Projection class | Event name + `Projection` | `PartieCreeProjection`, `JoueurRejointProjection` |
 | Read model | Aggregate name + `ReadModel` | `PartieReadModel` |
 | Checkpoint table | `ProjectionCheckpoints` | Shared across all projections |
-| Dispatcher | `ProjectionDispatcher` | One per bounded context |
+| Domain event bus | `IDomainEventBus` / `MediatRDomainEventBus` | Port in Shared.Write.Domain, adapter in Shared.Write.Infrastructure |
 | Worker | `AsyncProjectionWorker` | One per bounded context |

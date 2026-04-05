@@ -20,8 +20,10 @@ src/
 ├── Shared/
 │   ├── Write/
 │   │   ├── Shared.Write.Domain.csproj          → AggregateRoot<TId>, IDomainEvent, ITypedId, ICommand, IQuery,
-│   │   │                                         ICommandBus, IQueryBus, IEventStore, IProjection, exceptions
-│   │   └── Shared.Write.Infrastructure.csproj  → MediatR command adapters (MediatRCommandBus, AddWriteMessaging()),
+│   │   │                                         ICommandBus, IQueryBus, IEventStore, IDomainEventHandler<T>,
+│   │   │                                         IDomainEventBus, exceptions
+│   │   └── Shared.Write.Infrastructure.csproj  → MediatR command/event adapters (MediatRCommandBus, MediatRDomainEventBus,
+│   │                                              AddWriteMessaging(), AddDomainEventHandlers()),
 │   │                                              ES infra (IStateRebuilder, EventSerializer, TypedIdConverterFactory)
 │   └── Read/
 │       └── Shared.Read.Infrastructure.csproj   → MediatR query adapters (MediatRQueryBus, AddReadMessaging())

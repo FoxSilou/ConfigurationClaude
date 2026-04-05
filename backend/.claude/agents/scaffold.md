@@ -147,7 +147,7 @@ Inventory what exists and what is missing in the shared foundation.
 | **AggregateRoot<TId>** | Base class + IAggregateRoot + IDomainEvent | `src/Shared/Write/` (in Shared.Write.Domain) |
 | **ITypedId<T>** | Typed Id contract for serialization | `src/Shared/Write/` (in Shared.Write.Domain) |
 | **CQRS abstractions** | ICommand, ICommandHandler, ICommandBus, IQuery, IQueryHandler, IQueryBus | `src/Shared/Write/Abstractions/` |
-| **ES abstractions** | IEventStore, IProjection, Snapshot | `src/Shared/Write/Abstractions/` |
+| **ES abstractions** | IEventStore, IDomainEventHandler<T>, IDomainEventBus, Snapshot | `src/Shared/Write/Abstractions/` |
 | **Shared exceptions** | DomainException, NotFoundException | `src/Shared/Write/Exceptions/` |
 | **Shared.Write.Infrastructure project** | Does `Shared.Write.Infrastructure.csproj` exist? | `src/Shared/Write/` |
 | **Command messaging infrastructure** | MediatRCommandBus, command wrappers, adapters, AddWriteMessaging() | `src/Shared/Write/Messaging/` (in Shared.Write.Infrastructure) |
@@ -190,7 +190,8 @@ Save to: `docs/scaffold-general-<date>.md`
 | IQuery / IQueryHandler | ✅ / ❌ | |
 | IQueryBus | ✅ / ❌ | |
 | IEventStore + Snapshot | ✅ / ❌ | |
-| IProjection | ✅ / ❌ | |
+| IDomainEventHandler<T> | ✅ / ❌ | |
+| IDomainEventBus | ✅ / ❌ | |
 | DomainException | ✅ / ❌ | |
 | NotFoundException | ✅ / ❌ | |
 
@@ -278,7 +279,8 @@ Create the Shared.Write.Domain project with all shared abstractions (domain base
    - `IQueryBus.cs` — `IQueryBus`
 4. Create ES abstractions in `Abstractions/`:
    - `IEventStore.cs` — `IEventStore` (AppendToStreamAsync, ReadStreamAsync, LoadSnapshotAsync, SaveSnapshotAsync) + `Snapshot` record
-   - `IProjection.cs` — `IProjection` (EventTypes, ProjectAsync)
+   - `IDomainEventHandler.cs` — `IDomainEventHandler<TEvent>` (strongly-typed event handler)
+   - `IDomainEventBus.cs` — `IDomainEventBus` (PublierAsync)
 5. Create shared exceptions in `Exceptions/`:
    - `DomainException.cs`
    - `NotFoundException.cs`
@@ -484,7 +486,7 @@ Shared.Write.Domain:
 - AggregateRoot<TId>, IAggregateRoot, IDomainEvent, ITypedId<T>
 - ICommand<T>, ICommandHandler<,>, ICommandBus
 - IQuery<T>, IQueryHandler<,>, IQueryBus
-- IEventStore, IProjection, Snapshot
+- IEventStore, IDomainEventHandler<T>, IDomainEventBus, Snapshot
 - DomainException, NotFoundException
 
 Shared.Write.Infrastructure:
@@ -527,7 +529,7 @@ Event Sourcing is the **default persistence strategy**. If the user explicitly a
 For event-sourced BCs (default):
 - **No EF Core persistence models** for the aggregate — events are the persistence mechanism.
 - **BC Infrastructure** uses `EventSourced<Aggregate>Repository`, plus `EventStoreDbContext`, `StoredEvent` model, `AggregateSnapshot` model, and a `<Aggregate>StateRebuilder`.
-- **Projections**: `<Aggregate>Projection` and `ProjectionDispatcher` for read-side materialization.
+- **Projections**: `<Event>Projection` classes implementing `IDomainEventHandler<TEvent>` in Read Infrastructure for read-side materialization.
 - The **domain layer is identical** to state-based — the aggregate uses `AggregateRoot<TId>` and `Reconstituer` as usual.
 
 The diagnostic (Phase 0) must detect whether the BC targets event sourcing or state-based and adjust the checklist accordingly.
@@ -655,7 +657,7 @@ Follow the `event-sourcing` skill:
 - **BC Infrastructure/EventStore/**: create `EventStoreDbContext`, `StoredEvent` model, `AggregateSnapshot` model
 - **BC Infrastructure/EventStore/StateRebuilders/**: create `<Aggregate>StateRebuilder` — folds events, calls `Reconstituer`
 - **BC Infrastructure/Persistence/**: create `EventSourced<Aggregate>Repository` (NOT `EfCore<Aggregate>Repository`)
-- **BC Infrastructure/Projections/**: create `<Aggregate>Projection` and `ProjectionDispatcher`
+- **Read Infrastructure/Projections/**: create `<Event>Projection` classes implementing `IDomainEventHandler<TEvent>` — one per event type
 - **Read side**: create `ReadDbContext` and read models for projections
 
 #### 3. State-based Infrastructure (only if explicitly requested)
@@ -709,7 +711,7 @@ Wire all BC services in `Program.cs` (or a dedicated extension class):
 - Identity services (if applicable)
 - Repository implementations → their interfaces
 - State rebuilders (if ES)
-- Projections and ProjectionDispatcher (if ES)
+- **`builder.Services.AddDomainEventHandlers(typeof(SomeProjectionInBC).Assembly)`** for this BC's event handlers (projections)
 - Port implementations → their interfaces
 - **`builder.Services.AddWriteMessaging(typeof(SomeCommandInBC).Assembly)`** for this BC's command handlers
 - **`builder.Services.AddReadMessaging(typeof(SomeQueryInBC).Assembly)`** for this BC's query handlers
@@ -831,7 +833,8 @@ src/
 │   │   │   │   ├── IQuery.cs                         # IQuery<T>, IQueryHandler<,> — NO MediatR
 │   │   │   │   ├── IQueryBus.cs                      # Query dispatch abstraction — NO MediatR
 │   │   │   │   ├── IEventStore.cs                    # Event store port + Snapshot record
-│   │   │   │   └── IProjection.cs                    # Projection contract
+│   │   │   │   ├── IDomainEventHandler.cs            # Strongly-typed event handler contract
+│   │   │   │   └── IDomainEventBus.cs                # Event dispatch port
 │   │   │   └── Exceptions/
 │   │   │       ├── DomainException.cs
 │   │   │       └── NotFoundException.cs
@@ -878,17 +881,16 @@ src/
 │   │       │   │   └── AggregateSnapshot.cs
 │   │       │   └── StateRebuilders/
 │   │       │       └── <Aggregate>StateRebuilder.cs
-│   │       ├── Persistence/
-│   │       │   └── EventSourced<Aggregate>Repository.cs
-│   │       └── Projections/
-│   │           ├── <Aggregate>Projection.cs
-│   │           └── ProjectionDispatcher.cs
+│   │       └── Persistence/
+│   │           └── EventSourced<Aggregate>Repository.cs
 │   └── Read/
 │       ├── <BC>.Read.Application.csproj
 │       │   ├── <QueryFiles>.cs
 │       │   └── Ports/
 │       └── <BC>.Read.Infrastructure.csproj
 │           ├── ReadDbContext.cs
+│           ├── Projections/
+│           │   └── <Event>Projection.cs              # IDomainEventHandler<TEvent>
 │           └── ReadModels/
 ├── Api/
 │   ├── Api.csproj

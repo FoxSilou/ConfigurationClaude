@@ -24,7 +24,7 @@ Delegates to the `scaffold` agent.
 
 Scaffolds the shared foundation that all bounded contexts depend on:
 
-- **Shared.Write.Domain** — `AggregateRoot<TId>`, `IDomainEvent`, `ITypedId<T>`, `ICommand<T>`, `ICommandBus`, `IQueryBus`, `IEventStore`, `IProjection`, exceptions
+- **Shared.Write.Domain** — `AggregateRoot<TId>`, `IDomainEvent`, `ITypedId<T>`, `ICommand<T>`, `ICommandBus`, `IQueryBus`, `IEventStore`, `IDomainEventHandler<T>`, `IDomainEventBus`, exceptions
 - **Shared.Write.Infrastructure** — MediatR wiring (`MediatRCommandBus`, wrappers, adapters, `AddMessaging()`), ES infra (`IStateRebuilder`, `EventSerializer`, `TypedIdConverterFactory`, `ConcurrencyException`)
 - **API composition root** — `Program.cs` shell, error middleware (Problem Details RFC 7807), health endpoint
 - **E2E test harness** — project, `WebApplicationFactory`, collection fixture, smoke test
