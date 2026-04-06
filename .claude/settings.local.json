@@ -50,7 +50,11 @@
       "Bash(xargs grep:*)",
       "WebFetch(domain:resources.anthropic.com)",
       "WebFetch(domain:platform.anthropic.com)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(mkdir -p \"C:\\\\Developpement\\\\Perso\\\\ConfigurationClaude\\\\.claude\\\\skills\\\\task-scaffold-back\")",
+      "Bash(mkdir -p \"C:\\\\Developpement\\\\Perso\\\\ConfigurationClaude\\\\.claude\\\\skills\\\\task-scaffold-front\")",
+      "Bash(dotnet new classlib:*)",
+      "Bash(dotnet new xunit:*)"
     ]
   }
 }
