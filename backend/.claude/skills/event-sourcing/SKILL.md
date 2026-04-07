@@ -119,7 +119,6 @@ src/
     │   │   └── Behaviors/
     │   └── <BC>.Write.Infrastructure.csproj
     │       ├── EventStore/
-    │       │   ├── EventStoreDbContext.cs
     │       │   ├── Models/
     │       │   │   ├── StoredEvent.cs
     │       │   │   └── AggregateSnapshot.cs
@@ -132,7 +131,8 @@ src/
         │   ├── ObtenirPartie.cs
         │   └── Ports/
         └── <BC>.Read.Infrastructure.csproj
-            ├── ReadDbContext.cs
+            ├── Configurations/
+            │   └── PartieReadModelConfiguration.cs     ← IEntityTypeConfiguration for shared ReadDbContext
             ├── Projections/
             │   ├── PartieCreeProjection.cs              ← IDomainEventHandler<PartieCree>
             │   └── JoueurRejointProjection.cs           ← IDomainEventHandler<JoueurRejoint>

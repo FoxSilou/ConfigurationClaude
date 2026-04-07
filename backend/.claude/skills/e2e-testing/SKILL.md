@@ -76,83 +76,80 @@ ObtenirPartie_doit_retourner_404_quand_la_partie_est_introuvable
 
 ## Infrastructure Setup
 
-### WebApplicationFactory
+### WebApplicationFactory with Testcontainers SQL Server
 
-Each test class has its own factory instance. The database is reset between tests via TestContainers container restart or schema reset.
+The test factory extends `WebApplicationFactory<Program>` and uses **Testcontainers SQL Server** for full database isolation. A single container is shared across the test session via `ICollectionFixture`.
 
 ```csharp
-public class PartieApiTests : IAsyncLifetime
+public sealed class ImperiumRexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private WebApplicationFactory<Program> _factory = null!;
-    private HttpClient _client = null!;
+    private readonly MsSqlContainer _sqlContainer = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest")
+        .Build();
+
+    public FakeTimeProvider FakeTimeProvider { get; } = new();
 
     public async Task InitializeAsync()
     {
-        _factory = new WebApplicationFactory<Program>()
-            .WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureServices(services =>
-                {
-                    // Replace real DB with TestContainers connection
-                    services.RemoveAll<DbContextOptions<AppDbContext>>();
-                    services.AddDbContext<AppDbContext>(options =>
-                        options.UseNpgsql(TestDatabase.ConnectionString));
-                });
-            });
-
-        _client = _factory.CreateClient();
-        await TestDatabase.ResetAsync();
+        await _sqlContainer.StartAsync();
+        EnsureDatabaseCreated();
     }
 
-    public async Task DisposeAsync()
+    public new async Task DisposeAsync()
     {
-        _client.Dispose();
-        await _factory.DisposeAsync();
+        await _sqlContainer.DisposeAsync();
+        await base.DisposeAsync();
+    }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Testing");
+
+        builder.ConfigureServices(services =>
+        {
+            // Replace TimeProvider
+            var timeDesc = services.SingleOrDefault(d => d.ServiceType == typeof(TimeProvider));
+            if (timeDesc is not null) services.Remove(timeDesc);
+            services.AddSingleton<TimeProvider>(FakeTimeProvider);
+
+            // Replace WriteDbContext → Testcontainers SQL Server
+            var esDesc = services.SingleOrDefault(
+                d => d.ServiceType == typeof(DbContextOptions<WriteDbContext>));
+            if (esDesc is not null) services.Remove(esDesc);
+            services.AddDbContext<WriteDbContext>(options =>
+                options.UseSqlServer(_sqlContainer.GetConnectionString()));
+
+            // Replace ReadDbContext → Testcontainers SQL Server
+            var readDesc = services.SingleOrDefault(
+                d => d.ServiceType == typeof(DbContextOptions<ReadDbContext>));
+            if (readDesc is not null) services.Remove(readDesc);
+            services.AddDbContext<ReadDbContext>(options =>
+                options.UseSqlServer(_sqlContainer.GetConnectionString()));
+        });
+    }
+
+    private void EnsureDatabaseCreated()
+    {
+        using var scope = Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<WriteDbContext>().Database.EnsureCreated();
+        scope.ServiceProvider.GetRequiredService<ReadDbContext>().Database.EnsureCreated();
     }
 }
 ```
 
-### TestContainers — Shared Container
-
-The database container is shared across the test session (started once) but the schema is reset between each test class:
-
-```csharp
-public static class TestDatabase
-{
-    private static readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
-        .WithDatabase("testdb")
-        .WithUsername("test")
-        .WithPassword("test")
-        .Build();
-
-    public static string ConnectionString => _container.GetConnectionString();
-
-    public static async Task StartAsync() => await _container.StartAsync();
-    public static async Task StopAsync() => await _container.StopAsync();
-
-    public static async Task ResetAsync()
-    {
-        // Drop and recreate schema, or use Respawn
-        using var scope = /* get service scope */;
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await context.Database.EnsureDeletedAsync();
-        await context.Database.EnsureCreatedAsync();
-    }
-}
-```
-
-Start and stop the container via `AssemblyFixture` or `CollectionFixture`:
+### Collection Fixture
 
 ```csharp
 [CollectionDefinition("E2E")]
-public class E2ECollection : ICollectionFixture<E2EFixture> { }
-
-public class E2EFixture : IAsyncLifetime
-{
-    public Task InitializeAsync() => TestDatabase.StartAsync();
-    public Task DisposeAsync() => TestDatabase.StopAsync();
-}
+public class E2ECollection : ICollectionFixture<ImperiumRexWebApplicationFactory> { }
 ```
+
+### NuGet packages for E2E tests
+
+- `Microsoft.AspNetCore.Mvc.Testing`
+- `FluentAssertions`
+- `Microsoft.Extensions.TimeProvider.Testing`
+- `Testcontainers.MsSql`
+- `xunit`
 
 ---
 

@@ -2,12 +2,11 @@
 
 Use this mode when both a bounded context name AND an aggregate name are provided.
 
-**Prerequisite**: BC scaffolding (Mode 2) must be completed for this BC. The following must exist:
+**Prerequisite**: General scaffolding (Mode 1) and BC scaffolding (Mode 2) must be completed. The following must exist:
+- Shared ES infrastructure: `WriteDbContext`, `SqlEventStore`, `AddEventSourcing()` in `Shared.Write.Infrastructure`
 - All 5 BC projects (`<BC>.Write.Domain`, `<BC>.Write.Application`, `<BC>.Write.Infrastructure`, `<BC>.Read.Application`, `<BC>.Read.Infrastructure`)
-- `EventStoreDbContext` in `<BC>.Write.Infrastructure/EventStore/`
-- `SqlEventStore` in `<BC>.Write.Infrastructure/EventStore/`
 - `<BC>EventPayloadMapper` in `<BC>.Write.Infrastructure/EventStore/`
-- `<BC>ReadDbContext` in `<BC>.Read.Infrastructure/`
+- `ReadDbContext` (shared) in `Shared.Read.Infrastructure/`
 - Write `ServiceCollectionExtensions` in `<BC>.Write.Infrastructure/`
 - Read `ServiceCollectionExtensions` in `<BC>.Read.Infrastructure/`
 - `InternalsVisibleTo` for Infrastructure in `<BC>.Write.Domain.csproj`
@@ -46,7 +45,7 @@ Verify prerequisites and inventory what already exists for this aggregate.
 
 ### Steps
 
-1. **Verify BC prerequisites**: check that all 5 BC projects, EventStoreDbContext, SqlEventStore, `<BC>EventPayloadMapper`, `<BC>ReadDbContext`, both ServiceCollectionExtensions exist. If any is missing → stop and inform user to run BC scaffolding first.
+1. **Verify BC prerequisites**: check that all 5 BC projects, WriteDbContext, SqlEventStore, `<BC>EventPayloadMapper`, `ReadDbContext (shared)`, both ServiceCollectionExtensions exist. If any is missing → stop and inform user to run BC scaffolding first.
 2. **Check aggregate does not already exist**: look for `<Aggregate>.cs` in `<BC>.Write.Domain/Aggregates/`, `<Aggregate>Id.cs` in `ValueObjects/`. If the aggregate already exists → inform user and stop.
 3. Produce the diagnostic document.
 
@@ -65,10 +64,10 @@ Save to: `docs/scaffold-<bc>-<aggregate>-<date>.md`
 | <BC>.Write.Infrastructure project | ✅ / ❌ |
 | <BC>.Read.Application project | ✅ / ❌ |
 | <BC>.Read.Infrastructure project | ✅ / ❌ |
-| EventStoreDbContext | ✅ / ❌ |
-| SqlEventStore | ✅ / ❌ |
+| WriteDbContext (shared) | ✅ / ❌ |
+| SqlEventStore (shared) | ✅ / ❌ |
 | <BC>EventPayloadMapper | ✅ / ❌ |
-| <BC>ReadDbContext | ✅ / ❌ |
+| ReadDbContext (shared) | ✅ / ❌ |
 | Write ServiceCollectionExtensions | ✅ / ❌ |
 | Read ServiceCollectionExtensions | ✅ / ❌ |
 | InternalsVisibleTo | ✅ / ❌ |
@@ -221,13 +220,13 @@ Create the read model, update the ReadDbContext, create the projection, query, D
    - `[Table("<FrenchPlural>")]` — e.g., `Parties`, `Utilisateurs`, `Tournois`
    - `[Key] public Guid Id { get; set; }`
 
-2. **Modify `<BC>.Read.Infrastructure/<BC>ReadDbContext.cs`**:
-   - Add `DbSet<<Aggregate>ReadModel>` property
-   - Add entity configuration in `OnModelCreating`
+2. **Create `<BC>.Read.Infrastructure/Configurations/<Aggregate>ReadModelConfiguration.cs`**:
+   - Implements `IEntityTypeConfiguration<<Aggregate>ReadModel>`
+   - Configures the entity in the shared `ReadDbContext` (from `Shared.Read.Infrastructure`)
 
 3. **Create `<BC>.Read.Infrastructure/Projections/<Aggregate>CreeProjection.cs`**:
    - Implements `IDomainEventHandler<<Aggregate>Cree>`
-   - Dependency: `<BC>ReadDbContext`
+   - Dependency: `ReadDbContext`
    - Inserts a new `<Aggregate>ReadModel` row, extracting `.Valeur` from typed Ids
 
 4. **Create `<BC>.Read.Application/Ports/I<Aggregate>ReadRepository.cs`**:
@@ -241,7 +240,7 @@ Create the read model, update the ReadDbContext, create the projection, query, D
 
 6. **Create `<BC>.Read.Infrastructure/EfCore<Aggregate>ReadRepository.cs`**:
    - Implements `I<Aggregate>ReadRepository`
-   - Uses `<BC>ReadDbContext` with `AsNoTracking()`
+   - Uses `ReadDbContext` with `AsNoTracking()`
 
 ### Verification
 
@@ -326,7 +325,7 @@ Read Application:
 
 Read Infrastructure:
 - Models/<Aggregate>ReadModel.cs — read model
-- <BC>ReadDbContext.cs — updated with new DbSet
+- Configurations/<Aggregate>ReadModelConfiguration.cs — IEntityTypeConfiguration for shared ReadDbContext
 - Projections/<Aggregate>CreeProjection.cs — projection
 - EfCore<Aggregate>ReadRepository.cs — read repository
 
@@ -346,7 +345,7 @@ All tests passing ✅
 When scaffolding a **second or subsequent aggregate** in the same BC, files modified in Phases 3-5 already have content from previous aggregates. Always **append** to existing content — never overwrite:
 
 - `<BC>EventPayloadMapper.cs` — add a new case to the existing switch expression
-- `<BC>ReadDbContext.cs` — add a new DbSet property and entity configuration
+- `Configurations/` — add a new `IEntityTypeConfiguration<T>` for the new read model
 - Write `ServiceCollectionExtensions.cs` — add registrations alongside existing ones
 - Read `ServiceCollectionExtensions.cs` — add registrations alongside existing ones
 - API endpoints — add new endpoints alongside existing ones
@@ -364,6 +363,7 @@ When scaffolding a **second or subsequent aggregate** in the same BC, files modi
 | State rebuilder | `<Aggregate>StateRebuilder` | `PartieStateRebuilder` |
 | ES repository | `EventSourced<Aggregate>Repository` | `EventSourcedPartieRepository` |
 | Read model | `<Aggregate>ReadModel` | `PartieReadModel` |
+| Read model config | `<Aggregate>ReadModelConfiguration` | `PartieReadModelConfiguration` |
 | Projection | `<Aggregate>CreeProjection` | `PartieCreeProjection` |
 | Query | `Obtenir<Aggregate>` | `ObtenirPartie` |
 | DTO | `<Aggregate>Dto` | `PartieDto` |

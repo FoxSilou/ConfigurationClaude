@@ -10,8 +10,10 @@ Event Sourcing is the **default persistence strategy**. If the user explicitly a
 
 For event-sourced BCs (default):
 - **No EF Core persistence models** for the aggregate — events are the persistence mechanism.
-- **BC Infrastructure** uses `EventSourced<Aggregate>Repository`, plus `EventStoreDbContext`, `StoredEvent` model, `AggregateSnapshot` model, and a `<Aggregate>StateRebuilder`.
+- **`WriteDbContext`, `StoredEvent`, `AggregateSnapshot`, `SqlEventStore`** are **shared** (in `Shared.Write.Infrastructure`) — not created per-BC.
+- **BC Infrastructure** uses `EventSourced<Aggregate>Repository` and a `<Aggregate>StateRebuilder` (per aggregate).
 - **Projections**: `<Event>Projection` classes implementing `IDomainEventHandler<TEvent>` in Read Infrastructure for read-side materialization.
+- **ReadDbContext** is shared (in `Shared.Read.Infrastructure`) — each BC registers its read models via `IEntityTypeConfiguration<T>`.
 - The **domain layer is identical** to state-based — the aggregate uses `AggregateRoot<TId>` and `Reconstituer` as usual.
 
 The diagnostic (Phase 0) must detect whether the BC targets event sourcing or state-based and adjust the checklist accordingly.
@@ -50,7 +52,7 @@ Inventory what exists and what is missing for this bounded context.
 
 | Concern | What to check | Location |
 |---|---|---|
-| **EventStoreDbContext** | Does it exist and include the BC's stream tables? | `<BC>/Write/<BC>.Write.Infrastructure/EventStore/` |
+| **WriteDbContext (shared)** | Does it exist in `Shared.Write.Infrastructure`? | `Shared/Write/Shared.Write.Infrastructure/EventStore/` |
 | **State rebuilders** | Does each event-sourced aggregate have a StateRebuilder? | `<BC>/Write/<BC>.Write.Infrastructure/EventStore/StateRebuilders/` |
 | **Persistence models** | (state-based only) Does each aggregate have a persistence model? | `<BC>/Write/<BC>.Write.Infrastructure/Persistence/Models/` |
 | **Repository implementations** | Does each `I<Name>Repository` have an adapter? | `<BC>/Write/<BC>.Write.Infrastructure/Persistence/` |
@@ -86,7 +88,7 @@ Event Sourcing / State-based
 
 | Concern | Status | Details |
 |---|---|---|
-| EventStoreDbContext | ✅ / ❌ | <if ES> |
+| WriteDbContext (shared) | ✅ / ❌ | <in Shared.Write.Infrastructure> |
 | State rebuilders | ✅ / ❌ | <if ES> |
 | Persistence models | ✅ / ❌ | <if state-based> |
 | Repository implementations | ✅ / ❌ | <details> |
@@ -129,11 +131,11 @@ If the bounded context involves user authentication, follow rule `identity-frame
 
 Follow the `event-sourcing` skill:
 
-- **BC Infrastructure/EventStore/**: create `EventStoreDbContext`, `StoredEvent` model, `AggregateSnapshot` model
+- **`WriteDbContext`, `StoredEvent`, `AggregateSnapshot`, `SqlEventStore`** are already in `Shared.Write.Infrastructure` — do NOT recreate per-BC
 - **BC Infrastructure/EventStore/StateRebuilders/**: create `<Aggregate>StateRebuilder` — folds events, calls `Reconstituer`
 - **BC Infrastructure/Persistence/**: create `EventSourced<Aggregate>Repository` (NOT `EfCore<Aggregate>Repository`)
 - **Read Infrastructure/Projections/**: create `<Event>Projection` classes implementing `IDomainEventHandler<TEvent>` — one per event type
-- **Read side**: create `ReadDbContext` and read models for projections
+- **Read side**: create read models in `<BC>.Read.Infrastructure/Models/` and `IEntityTypeConfiguration<T>` for each read model (registered in the shared `ReadDbContext` from `Shared.Read.Infrastructure`)
 
 #### 3. State-based Infrastructure (only if explicitly requested)
 
@@ -174,7 +176,8 @@ Wire the API endpoints and dependency injection for this bounded context.
 
 Wire all BC services in `Program.cs` (or a dedicated extension class):
 
-- EventStoreDbContext / AppDbContext with connection string
+- `AddEventSourcing(connectionString, domainAssemblies)` — registers shared WriteDbContext + SqlEventStore (if not already registered)
+- `AddReadDbContext(connectionString, readInfraAssemblies)` — registers shared ReadDbContext (if not already registered), pass the BC's Read.Infrastructure assembly
 - Identity services (if applicable)
 - Repository implementations → their interfaces
 - State rebuilders (if ES)

@@ -46,7 +46,7 @@ Inventory what exists and what is missing in the shared foundation.
 | **Shared exceptions** | DomainException, NotFoundException | `src/Shared/Write/Exceptions/` |
 | **Shared.Write.Infrastructure project** | Does `Shared.Write.Infrastructure.csproj` exist? | `src/Shared/Write/` |
 | **Command messaging infrastructure** | MediatRCommandBus, command wrappers, adapters, AddWriteMessaging() | `src/Shared/Write/Messaging/` (in Shared.Write.Infrastructure) |
-| **ES infrastructure** | IStateRebuilder, EventSerializer, TypedIdConverterFactory, ConcurrencyException | `src/Shared/Write/` (in Shared.Write.Infrastructure) |
+| **ES infrastructure** | SqlEventStore, WriteDbContext, StoredEvent, AggregateSnapshot, AddEventSourcing(), IStateRebuilder, EventSerializer, TypedIdConverterFactory, ValueObjectConverterFactory, ConcurrencyException | `src/Shared/Write/` (in Shared.Write.Infrastructure) |
 | **Shared.Read.Infrastructure project** | Does `Shared.Read.Infrastructure.csproj` exist? | `src/Shared/Read/` |
 | **Query messaging infrastructure** | MediatRQueryBus, query wrappers, adapters, AddReadMessaging() | `src/Shared/Read/Messaging/` (in Shared.Read.Infrastructure) |
 | **API project** | Does the Api `.csproj` exist? | `src/Api/` |
@@ -98,9 +98,14 @@ Save to: `docs/scaffold-general-<date>.md`
 | CommandRequest wrappers | ✅ / ❌ | |
 | CommandRequestHandler adapters | ✅ / ❌ | |
 | AddWriteMessaging() extension | ✅ / ❌ | |
+| SqlEventStore | ✅ / ❌ | |
+| WriteDbContext | ✅ / ❌ | |
+| StoredEvent + AggregateSnapshot models | ✅ / ❌ | |
+| AddEventSourcing() extension | ✅ / ❌ | |
 | IStateRebuilder<TAggregate, TId> | ✅ / ❌ | |
-| EventSerializer | ✅ / ❌ | |
+| EventSerializer (assembly scanning, discriminator, snapshot) | ✅ / ❌ | |
 | TypedIdConverterFactory | ✅ / ❌ | |
+| ValueObjectConverterFactory | ✅ / ❌ | |
 | ConcurrencyException | ✅ / ❌ | |
 
 ## Shared.Read.Infrastructure Status
@@ -193,7 +198,7 @@ Create Shared.Write.Infrastructure with command messaging (MediatR) and Event So
 
 1. Create `src/Shared/Write/Shared.Write.Infrastructure.csproj`
    - Reference Shared.Write.Domain
-   - NuGet: `MediatR`, `Microsoft.Extensions.DependencyInjection.Abstractions`, `System.Text.Json`
+   - NuGet: `MediatR`, `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.SqlServer`, `Microsoft.Extensions.DependencyInjection.Abstractions`, `System.Text.Json`
 2. Create MediatR **command** adapters in `Messaging/` — follow the adapter pattern from rule `mediatr.md`:
    - `CommandRequest.cs`, `CommandRequestHandler.cs`, `VoidCommandRequestHandler.cs`
    - `MediatRCommandBus.cs` — implements `ICommandBus`
@@ -204,9 +209,18 @@ Create Shared.Write.Infrastructure with command messaging (MediatR) and Event So
    Without this, MediatR's `ISender.Send()` cannot resolve the adapter and dispatch silently fails — `RegisterServicesFromAssembly` cannot discover open generic adapters in a different assembly.
 
 3. Create ES infrastructure:
-   - `EventStore/IStateRebuilder.cs`, `Serialization/EventSerializer.cs`, `Serialization/TypedIdConverter.cs`, `Serialization/TypedIdConverterFactory.cs`, `Serialization/ValueObjectConverterFactory.cs`, `Exceptions/ConcurrencyException.cs`
+   - `Serialization/EventSerializer.cs`, `Serialization/TypedIdConverter.cs`, `Serialization/TypedIdConverterFactory.cs`, `Serialization/ValueObjectConverterFactory.cs`
+   - `EventStore/Models/StoredEvent.cs`, `EventStore/Models/AggregateSnapshot.cs` — EF Core persistence models for the event store
+   - `EventStore/WriteDbContext.cs` — shared DbContext with `DbSet<StoredEvent>`, `DbSet<AggregateSnapshot>`, unique constraint on `(EntityName, EntityId, StreamVersion)`
+   - `EventStore/SqlEventStore.cs` — implements `IEventStore` using `WriteDbContext` + `EventSerializer`
+   - `EventStore/InMemoryEventStore.cs` — in-memory implementation for unit tests
+   - `EventStore/ServiceCollectionExtensions.cs` — `AddEventSourcing(string connectionString, params Assembly[] domainAssemblies)` registers `WriteDbContext`, `EventSerializer`, `SqlEventStore`
+   - `EventStore/IStateRebuilder.cs`
+   - `Exceptions/ConcurrencyException.cs`
 
    ⚠️ **CRITICAL: `EventSerializer` must use `type.Name` (not `type.FullName`) as the type map key** — the `SqlEventStore` stores `GetType().Name`.
+
+   ⚠️ **CRITICAL: `EventSerializer` constructor takes `params Assembly[]`** — scans for `IDomainEvent` implementations and builds a discriminator → CLR type map. Must include `GetDiscriminator()`, `Serialize()`, `Deserialize(discriminator, payload)`, `SerializeSnapshot()`, `DeserializeSnapshot()`.
 
    ⚠️ **CRITICAL: `EventSerializer` default `JsonSerializerOptions` must include `TypedIdConverterFactory` and `ValueObjectConverterFactory`** — without these, serialization of Value Objects and Typed Ids in events fails.
 
@@ -233,11 +247,19 @@ Create Shared.Read.Infrastructure with query messaging (MediatR).
 
 1. Create `src/Shared/Read/Shared.Read.Infrastructure.csproj`
    - Reference Shared.Write.Domain
-   - NuGet: `MediatR`, `Microsoft.Extensions.DependencyInjection.Abstractions`
+   - NuGet: `MediatR`, `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.SqlServer`, `Microsoft.Extensions.DependencyInjection.Abstractions`
 2. Create MediatR **query** adapters in `Messaging/` — same adapter pattern as Write side (rule `mediatr.md`):
    - `QueryRequest.cs`, `QueryRequestHandler.cs`, `MediatRQueryBus.cs`, `ServiceCollectionExtensions.cs`
    
    ⚠️ **CRITICAL: `AddReadMessaging()` must register closed MediatR adapter types** — same pattern as `AddWriteMessaging()`. Without this, query dispatch fails.
+
+3. Create `ReadDbContext.cs` — **single shared ReadDbContext** for the entire solution:
+   - `public sealed class ReadDbContext(DbContextOptions<ReadDbContext> options) : DbContext(options)`
+   - No `DbSet<T>` properties — entities are discovered via `IEntityTypeConfiguration<T>` provided by each BC
+   - `OnModelCreating` applies configurations from assemblies passed during DI registration
+4. Create `ServiceCollectionExtensions.cs` — `AddReadDbContext(string connectionString, params Assembly[] readInfraAssemblies)`:
+   - Registers `ReadDbContext` with `UseSqlServer(connectionString)`
+   - Stores the assemblies so `OnModelCreating` can call `ApplyConfigurationsFromAssembly()` for each
 
 ### Verification
 
@@ -248,7 +270,7 @@ Run `dotnet build` — must compile.
 ⛔ **GATE: Stop after creating Shared.Read.Infrastructure.**
 
 Present files created and build status. Ask:
-> *"Shared.Read.Infrastructure créé (query messaging MediatR). Tout compile. Confirmez pour passer au shell API."*
+> *"Shared.Read.Infrastructure créé (query messaging MediatR + ReadDbContext partagé). Tout compile. Confirmez pour passer au shell API."*
 
 ---
 
@@ -262,10 +284,28 @@ Create the API project with composition root, error middleware, and health endpo
 
 1. Create `src/Api/Api.csproj` (ASP.NET Core Web API)
    - Reference Shared.Write.Domain, Shared.Write.Infrastructure, Shared.Read.Infrastructure
+   - NuGet: `Microsoft.EntityFrameworkCore.Design` (PrivateAssets=all), `Microsoft.EntityFrameworkCore.SqlServer`
 2. Create `src/Api/Program.cs`:
    - Minimal composition root, `TimeProvider.System` singleton, health endpoint (`/health`)
    - `public partial class Program;` at end for E2E test access
-3. Create error middleware — follow rule `error-handling.md` for exception-to-HTTP mapping and Problem Details (RFC 7807)
+   - Register `AddEventSourcing(connectionString, domainAssemblies)` for the SQL event store
+   - Register `AddReadDbContext(connectionString, readInfraAssemblies)` for the shared ReadDbContext
+   - Connection strings read from `builder.Configuration.GetConnectionString("Write")` and `GetConnectionString("Read")`
+3. Create `appsettings.Development.json` with connection strings:
+   ```json
+   {
+     "ConnectionStrings": {
+       "Write": "Server=localhost;Database=<SolutionName>_Write;Trusted_Connection=True;TrustServerCertificate=True",
+       "Read": "Server=localhost;Database=<SolutionName>_Read;Trusted_Connection=True;TrustServerCertificate=True"
+     }
+   }
+   ```
+4. Configure CORS:
+   - Add `builder.Services.AddCors(...)` reading allowed origins from `Configuration["Cors:Origins"]`
+   - Add `app.UseCors()` **before** the error handling middleware
+   - Add a `Cors:Origins` section in `appsettings.Development.json` with the frontend dev URLs (e.g. `["https://localhost:63406", "http://localhost:63407"]`)
+   - In production `appsettings.json`, leave the section empty (`[]`) — origins must be explicitly configured per environment
+4. Create error middleware — follow rule `error-handling.md` for exception-to-HTTP mapping and Problem Details (RFC 7807)
 
 ### Verification
 
@@ -290,14 +330,17 @@ Create the E2E test project with WebApplicationFactory and a smoke test.
 
 1. Create `tests/<SolutionName>.E2E.Tests/<SolutionName>.E2E.Tests.csproj`
    - Reference the Api project
-   - Add NuGet packages: `Microsoft.AspNetCore.Mvc.Testing`, `FluentAssertions`, `Microsoft.Extensions.TimeProvider.Testing`, `xunit`
+   - Add NuGet packages: `Microsoft.AspNetCore.Mvc.Testing`, `FluentAssertions`, `Microsoft.Extensions.TimeProvider.Testing`, `Testcontainers.MsSql`, `xunit`
    - Add the project to the solution
 2. Create `E2EFixture.cs`:
    - Extends `WebApplicationFactory<Program>`
+   - Uses `Testcontainers.MsSql` — starts a SQL Server container in `InitializeAsync()`
+   - Replaces `WriteDbContext` and `ReadDbContext` with `UseSqlServer(_sqlContainer.GetConnectionString())`
    - Replaces `TimeProvider` with `FakeTimeProvider`
-   - Implements `IAsyncLifetime` for lifecycle
+   - Calls `EnsureCreated()` on `WriteDbContext` and `ReadDbContext` after container startup
+   - Implements `IAsyncLifetime` for lifecycle (start container → stop container)
 3. Create `E2ECollection.cs`:
-   - `[CollectionDefinition("E2E")]`
+   - `[CollectionDefinition("E2E")]` with `ICollectionFixture<E2EFixture>`
 4. Create smoke test following E2E conventions from skill `e2e-testing`:
    - Test name: `Api_doit_demarrer_sans_erreur`
    - GET /health → 200
@@ -336,22 +379,30 @@ Shared.Write.Domain:
 Shared.Write.Infrastructure:
 - ICommandBus → MediatRCommandBus (MediatR hidden in Infrastructure)
 - AddWriteMessaging() auto-scans command handlers + registers closed MediatR adapters
+- SqlEventStore (implements IEventStore, SQL Server)
+- WriteDbContext + StoredEvent + AggregateSnapshot (shared, single DB <SolutionName>_Write)
+- AddEventSourcing(connectionString, assemblies) — one-line DI registration
 - IStateRebuilder<TAggregate, TId>
-- EventSerializer (type.Name key, with TypedIdConverterFactory + ValueObjectConverterFactory)
+- EventSerializer (assembly scanning, discriminator, type.Name key, snapshot support, with TypedIdConverterFactory + ValueObjectConverterFactory)
 - TypedIdConverterFactory, ValueObjectConverterFactory
+- InMemoryEventStore (for unit tests)
 - ConcurrencyException
 
 Shared.Read.Infrastructure:
 - IQueryBus → MediatRQueryBus (MediatR hidden in Infrastructure)
 - AddReadMessaging() auto-scans query handlers + registers closed MediatR adapters
+- ReadDbContext (shared, single DB <SolutionName>_Read, no DbSets — uses IEntityTypeConfiguration<T> from BC assemblies)
+- AddReadDbContext(connectionString, assemblies) — one-line DI registration
 - MediatR NEVER referenced in Domain or Application ✅
 
 API shell:
-- Program.cs with TimeProvider, health endpoint, error middleware
+- Program.cs with TimeProvider, AddEventSourcing(), AddReadDbContext(), health endpoint, CORS, error middleware
+- Connection strings in appsettings.Development.json (Write + Read)
 - Problem Details (RFC 7807) for domain exceptions + ConcurrencyException
 
 E2E test harness:
 - Project: tests/<SolutionName>.E2E.Tests/
-- WebApplicationFactory with FakeTimeProvider
+- WebApplicationFactory with Testcontainers SQL Server + FakeTimeProvider
+- EnsureCreated() for WriteDbContext + ReadDbContext
 - Smoke test: green ✅
 ```

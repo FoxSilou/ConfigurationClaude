@@ -8,10 +8,11 @@ ASP.NET Core solution **ImperiumRex** following **Hexagonal Architecture**, **DD
 - **Runtime**: .NET (latest stable — currently .NET 10)
 - **Web framework**: ASP.NET Core (Minimal APIs or Controllers)
 - **ORM**: Entity Framework Core
+- **Database**: SQL Server (default for Event Store and Read Models)
 - **Internal messaging**: MediatR — used as an **infrastructure adapter** behind generic interfaces in Shared.Write.Domain
-- **Persistence**: Event Sourcing by default (custom SQL event store), state-based (EF Core) as alternative
+- **Persistence**: Event Sourcing by default (custom SQL event store in `Shared.Write.Infrastructure`), state-based (EF Core) as alternative
 - **Time abstraction**: `TimeProvider` (built-in .NET 8+)
-- **Tests**: xUnit, FluentAssertions
+- **Tests**: xUnit, FluentAssertions, Testcontainers (SQL Server for E2E)
 
 ## Architecture
 
@@ -24,9 +25,13 @@ src/
 │   │   │                                         IDomainEventBus, exceptions
 │   │   └── Shared.Write.Infrastructure.csproj  → MediatR command/event adapters (MediatRCommandBus, MediatRDomainEventBus,
 │   │                                              AddWriteMessaging(), AddDomainEventHandlers()),
-│   │                                              ES infra (IStateRebuilder, EventSerializer, TypedIdConverterFactory)
+│   │                                              ES infra (SqlEventStore, WriteDbContext, StoredEvent, AggregateSnapshot,
+│   │                                              IStateRebuilder, EventSerializer, AddEventSourcing(),
+│   │                                              TypedIdConverterFactory, ValueObjectConverterFactory)
 │   └── Read/
-│       └── Shared.Read.Infrastructure.csproj   → MediatR query adapters (MediatRQueryBus, AddReadMessaging())
+│       └── Shared.Read.Infrastructure.csproj   → MediatR query adapters (MediatRQueryBus, AddReadMessaging()),
+│                                                  ReadDbContext (shared, single DB <SolutionName>_Read),
+│                                                  AddReadDbContext()
 ├── <BoundedContext>/
 │   ├── Write/
 │   │   ├── <BC>.Write.Domain.csproj            → Aggregates, Entities, ValueObjects, Events, Ports
@@ -34,7 +39,7 @@ src/
 │   │   └── <BC>.Write.Infrastructure.csproj    → Adapters (EF Core, EventStore, external services)
 │   └── Read/
 │       ├── <BC>.Read.Application.csproj        → Queries + Handlers (flat), Ports
-│       └── <BC>.Read.Infrastructure.csproj     → Read adapters (Dapper, ReadDbContext, projections)
+│       └── <BC>.Read.Infrastructure.csproj     → Read adapters (read models, IEntityTypeConfiguration<T>, projections)
 ├── Api/
 │   └── Api.csproj                               ← Composition root
 tests/
@@ -57,7 +62,8 @@ Dependencies flow **inward only**: Api → Application → Domain. Infrastructur
 - **Ports use Value Objects**, never raw primitives.
 - **Invariants in private constructor**, not in factory methods.
 - **Problem Details (RFC 7807)** for API error responses.
-- **Event Sourcing by default** — domain-pure aggregates, custom SQL event store, state rebuilders in Infrastructure.
+- **Event Sourcing by default** — domain-pure aggregates, custom SQL event store (SQL Server), state rebuilders in Infrastructure.
+- **Testcontainers for E2E** — SQL Server containers for isolated E2E tests.
 
 → Full conventions (naming table, C# style, Always/Never checklist): see skill `backend-conventions`
 → TDD discipline: see skill `tdd-workflow`
@@ -81,7 +87,11 @@ Dependencies flow **inward only**: Api → Application → Domain. Infrastructur
 dotnet build
 dotnet test
 dotnet test --collect:"XPlat Code Coverage"
-dotnet ef migrations add <n> --project src/<BC>/Write/<BC>.Write.Infrastructure --startup-project src/Api
-dotnet ef database update --project src/<BC>/Write/<BC>.Write.Infrastructure --startup-project src/Api
+# Write migrations (shared WriteDbContext)
+dotnet ef migrations add <n> --project src/Shared/Write/Shared.Write.Infrastructure --startup-project src/Api/Api --context WriteDbContext --output-dir EventStore/Migrations
+dotnet ef database update --project src/Shared/Write/Shared.Write.Infrastructure --startup-project src/Api/Api --context WriteDbContext
+# Read migrations (shared ReadDbContext)
+dotnet ef migrations add <n> --project src/Shared/Read/Shared.Read.Infrastructure --startup-project src/Api/Api --context ReadDbContext --output-dir Migrations
+dotnet ef database update --project src/Shared/Read/Shared.Read.Infrastructure --startup-project src/Api/Api --context ReadDbContext
 dotnet format
 ```

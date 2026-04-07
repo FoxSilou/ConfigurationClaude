@@ -35,7 +35,7 @@ Scaffolds the shared foundation that all bounded contexts depend on:
 
 Scaffolds the vertical slice for a specific bounded context:
 
-- **Persistence** — event store (EventStoreDbContext, StateRebuilders, EventSourcedRepository) or EF Core models
+- **Persistence** — event store (WriteDbContext, StateRebuilders, EventSourcedRepository) or EF Core models
 - **Port implementations** — adapters for Application ports (`IEmailSender`, `IPasswordHasher`, etc.)
 - **Projections** — read-side materialization from events
 - **API endpoints** — endpoints using `ICommandBus`, request DTOs, DI registration
@@ -48,7 +48,7 @@ Scaffolds the minimal structure for a new aggregate within an existing BC:
 - **Write Domain** — Typed Id, creation event, aggregate class (with `Creer` + `Reconstituer`), repository port
 - **Write Application** — Creation command + nested handler
 - **Write Infrastructure** — Event payload, payload mapper update, state rebuilder, event-sourced repository
-- **Read side** — Read model, ReadDbContext update, projection, query + DTO, read repository port + implementation
+- **Read side** — Read model, IEntityTypeConfiguration<T> for shared ReadDbContext, projection, query + DTO, read repository port + implementation
 - **Wiring** — DI registration updates (Write + Read), API endpoints (POST + GET)
 
 The aggregate scaffold produces a **minimal aggregate with only an Id** — no business properties. Business logic is added via `/task-implement-feature-back`.

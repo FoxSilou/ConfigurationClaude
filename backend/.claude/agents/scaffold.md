@@ -80,7 +80,7 @@ Scaffolds the **minimal structure for a new aggregate** within an existing BC:
 - Write Domain: typed Id, creation event, aggregate class (`Creer` + `Reconstituer`), repository port
 - Write Application: creation command + nested handler
 - Write Infrastructure: event payload, payload mapper update, state rebuilder, event-sourced repository
-- Read side: read model, ReadDbContext update, projection, query + DTO, read repository
+- Read side: read model, IEntityTypeConfiguration<T> for shared ReadDbContext, projection, query + DTO, read repository
 - Wiring: DI registration updates (Write + Read), API endpoints (POST + GET)
 
 The aggregate scaffold produces an **aggregate with only an Id** — no business properties. Business logic is added later via `/task-implement-feature-back`.

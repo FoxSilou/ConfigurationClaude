@@ -230,7 +230,9 @@ Create the frontend project structure following the hexagonal architecture.
 
 ### Steps
 
-1. Create the Blazor project if it does not exist.
+1. Create the Blazor project if it does not exist:
+   - Add `<WasmDebugging>true</WasmDebugging>` in the `<PropertyGroup>` of the `.csproj` to enable WebAssembly debugging
+   - Create `wwwroot/appsettings.json` with `ApiBaseUrl` pointing to the backend dev URL (e.g. `{"ApiBaseUrl": "https://localhost:7147"}`)
 2. Create the UI.Domain project (pure C# class library — **zero Blazor dependency**):
    - `UI.Domain.csproj`
    - `Presenters/` directory

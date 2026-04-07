@@ -150,7 +150,7 @@ src/
 ```csharp
 // Infrastructure/EventStore/SqlEventStore.cs
 internal sealed class SqlEventStore(
-    EventStoreDbContext dbContext,
+    WriteDbContext dbContext,
     EventSerializer serializer,
     IEnumerable<IEventUpcaster> upcasters) : IEventStore
 {
@@ -469,7 +469,7 @@ public static IServiceCollection AddEventSourcing(
     string connectionString,
     params Assembly[] domainAssemblies)
 {
-    services.AddDbContext<EventStoreDbContext>(options =>
+    services.AddDbContext<WriteDbContext>(options =>
         options.UseSqlServer(connectionString)); // or UseNpgsql for PostgreSQL
 
     services.AddSingleton(new EventSerializer(domainAssemblies));
@@ -486,11 +486,11 @@ public static IServiceCollection AddPartieEventSourcing(this IServiceCollection 
 }
 ```
 
-## EventStoreDbContext
+## WriteDbContext
 
 ```csharp
-// Infrastructure/EventStore/EventStoreDbContext.cs
-internal sealed class EventStoreDbContext(DbContextOptions<EventStoreDbContext> options)
+// Infrastructure/EventStore/WriteDbContext.cs
+internal sealed class WriteDbContext(DbContextOptions<WriteDbContext> options)
     : DbContext(options)
 {
     public DbSet<StoredEvent> Events => Set<StoredEvent>();

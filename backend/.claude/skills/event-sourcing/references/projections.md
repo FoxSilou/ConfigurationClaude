@@ -194,7 +194,7 @@ internal sealed class AsyncProjectionWorker(
             {
                 using var scope = scopeFactory.CreateScope();
                 var publisher = scope.ServiceProvider.GetRequiredService<IDomainEventBus>();
-                var eventStoreDb = scope.ServiceProvider.GetRequiredService<EventStoreDbContext>();
+                var eventStoreDb = scope.ServiceProvider.GetRequiredService<WriteDbContext>();
                 var readDb = scope.ServiceProvider.GetRequiredService<ReadDbContext>();
                 var serializer = scope.ServiceProvider.GetRequiredService<EventSerializer>();
                 var mapper = scope.ServiceProvider.GetRequiredService<IEventPayloadMapper>();

@@ -43,7 +43,7 @@ This project follows the **State Rebuilder** pattern (also known as "external fo
 
 | Element | Convention | Example |
 |---|---|---|
-| Event store classes | English, technical | `SqlEventStore`, `StoredEvent`, `EventStoreDbContext` |
+| Event store classes | English, technical | `SqlEventStore`, `StoredEvent`, `WriteDbContext` |
 | Event-sourced repository | `EventSourced` + aggregate name | `EventSourcedPartieRepository` |
 | State rebuilder | Aggregate name + `StateRebuilder` | `PartieStateRebuilder` |
 | Event handlers (projections) | Event name + `Projection` | `PartieCreeProjection`, `JoueurRejointProjection` |

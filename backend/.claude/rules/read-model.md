@@ -18,7 +18,7 @@ src/<BoundedContext>/Read/
 │   ├── <QueryFiles>.cs        ← Queries + nested handlers (flat, no Queries/ subfolder)
 │   └── Ports/                 ← Read-specific service interfaces
 ├── Infrastructure/
-│   ├── ReadDbContext.cs        ← Dedicated read DbContext (or shared, depending on scale)
+│   ├── Configurations/         ← IEntityTypeConfiguration<T> for each read model (registered in shared ReadDbContext)
 │   └── <ReadRepository>.cs    ← Read repository implementations (EF Core, Dapper…)
 └── Api/
     └── <ReadEndpoints>.cs     ← Read endpoints (GET)

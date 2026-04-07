@@ -54,7 +54,14 @@
       "Bash(mkdir -p \"C:\\\\Developpement\\\\Perso\\\\ConfigurationClaude\\\\.claude\\\\skills\\\\task-scaffold-back\")",
       "Bash(mkdir -p \"C:\\\\Developpement\\\\Perso\\\\ConfigurationClaude\\\\.claude\\\\skills\\\\task-scaffold-front\")",
       "Bash(dotnet new classlib:*)",
-      "Bash(dotnet new xunit:*)"
+      "Bash(dotnet new xunit:*)",
+      "Bash(mkdir -p src/Identite/Write/Identite.Write.Domain/Aggregates)",
+      "Bash(mkdir -p src/Identite/Write/Identite.Write.Domain/ValueObjects)",
+      "Bash(mkdir -p src/Identite/Write/Identite.Write.Domain/Events)",
+      "Bash(mkdir -p src/Identite/Write/Identite.Write.Domain/Ports)",
+      "Bash(mkdir -p src/Identite/Write/Identite.Write.Application/Ports)",
+      "Bash(find C:\\\\Developpement\\\\Perso\\\\ConfigurationClaude\\\\backend:*)",
+      "Bash(find:*)"
     ]
   }
 }
