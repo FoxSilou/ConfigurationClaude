@@ -3,7 +3,7 @@ name: scaffold-architecture
 description: >
   Frontend infrastructure architecture rules for scaffolding.
   Covers: hexagonal frontend (Presenter/Coquille de rendu), project dependency graph
-  (Blazor -> Domain <- Infrastructure), UI Kit encapsulation (App* wrappers, @using Radzen
+  (Blazor -> Domain <- Infrastructure), UI Kit encapsulation (Kit wrappers, @using Radzen
   confine dans Kit/), Presenter lifecycle (Scoped DI, OnChanged, IDisposable),
   Gateway ports with DTOs, testing strategy (bUnit Presenters + Playwright bugs).
   Use when scaffolding frontend infrastructure or wiring new feature areas.
@@ -32,7 +32,7 @@ UI.Blazor
 ├── Pages/              -> Pages routable, coquille de rendu
 ├── Components/
 │   ├── Kit/            -> Wrappers Radzen (seul endroit avec @using Radzen)
-│   └── Shared/         -> Composants metier reutilisables (utilisent les App*)
+│   └── Shared/         -> Composants metier reutilisables (utilisent les Kit)
 └── Layout/
 ```
 
@@ -56,11 +56,12 @@ La fleche de dependance va toujours vers le Domain : **Blazor -> Domain <- Infra
 
 Les composants de bibliotheques UI tierces (Radzen, MudBlazor, etc.) ne sont **JAMAIS** utilises directement dans les pages ou composants metier. Voir skill `blazor-ui-kit` pour les templates.
 
-- **Prefixe `App`** : `AppDataGrid`, `AppDialog`, `AppButton`, `AppTextBox`, `AppDropDown`
+- **Noms directs sans prefixe** : `DataGrid`, `Dialog`, `Button`, `TextBox`, `DropDown`, `[Projet]DialogService`
 - **`@using Radzen` uniquement dans `Components/Kit/`** — jamais dans une page metier
 - **N'exposer que les Parameter utilises** — pas de passthrough generique
 - **Nommer en francais** avec le vocabulaire metier quand pertinent (`Colonnes`, `Source`, `EnChargement`)
 - **Centraliser les valeurs par defaut** dans le wrapper (taille de page, format de date, densite)
+- **Toujours capturer les attributs HTML non declares** via `[Parameter(CaptureUnmatchedValues = true)]` et `@attributes="AttributsSupplementaires"` sur l'element racine — permet le passthrough de `data-testid`, `id`, `aria-*`
 
 ---
 

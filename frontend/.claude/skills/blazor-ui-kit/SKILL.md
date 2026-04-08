@@ -1,12 +1,12 @@
 ---
 name: blazor-ui-kit
 description: >
-  Encapsulation de composants Radzen Blazor dans des wrappers maison (AppDataGrid, AppDialog, etc.)
+  Encapsulation de composants Radzen Blazor dans des wrappers maison (DataGrid, Dialog, etc.)
   et câblage avec l'architecture hexagonale frontend (Presenter ↔ Wrapper).
   Utiliser ce skill chaque fois que l'utilisateur demande de créer un composant UI,
   un wrapper autour d'un composant Radzen, une grille de données, un dialogue, un formulaire,
   ou veut câbler un composant Radzen avec un Presenter. Également quand l'utilisateur mentionne
-  Radzen, AppDataGrid, AppDialog, composant maison, kit UI, ou veut remplacer un usage direct
+  Radzen, DataGrid, Dialog, composant maison, kit UI, ou veut remplacer un usage direct
   de Radzen par un wrapper. Aussi pertinent quand l'utilisateur crée une nouvelle page Blazor
   qui a besoin de composants UI.
 user-invocable: false
@@ -30,11 +30,11 @@ vers celui de la bibliothèque, exactement comme un Gateway traduit vers HTTP.
 
 ### Règles d'encapsulation
 
-1. **N'exposer que les Parameter utilisés** — pas de passthrough générique
+1. **N'exposer que les Parameter Radzen utilisés** — pas de passthrough générique des Parameter Radzen. En revanche, toujours capturer les attributs HTML standards (`data-testid`, `id`, `aria-*`) via `[Parameter(CaptureUnmatchedValues = true)]` et `@attributes="AttributsSupplementaires"` sur l'élément racine
 2. **Nommer en français avec le vocabulaire métier** quand pertinent (`Colonnes`, `Source`, `EnChargement`)
 3. **Centraliser les valeurs par défaut** dans le wrapper (taille de page, format de date, densité)
 4. **Un `@using Radzen` ne doit jamais apparaître dans une page métier** — uniquement dans les wrappers
-5. **Préfixer `App`** : `AppDataGrid`, `AppDialog`, `AppButton`, `AppTextBox`, `AppDropDown`
+5. **Noms directs sans préfixe** : `DataGrid`, `Dialog`, `Button`, `TextBox`, `DropDown`, `[Projet]DialogService`
 
 ### Structure de dossiers
 
@@ -43,15 +43,15 @@ UI.Blazor/
 ├── Components/
 │   ├── Kit/                    ← Wrappers Radzen (seul endroit avec @using Radzen)
 │   │   ├── _Imports.razor      ← @using Radzen ici uniquement
-│   │   ├── AppDataGrid.razor
-│   │   ├── AppDialog.razor
-│   │   ├── AppButton.razor
-│   │   ├── AppTextBox.razor
-│   │   └── AppNotification.razor
-│   └── Shared/                 ← Composants métier réutilisables (utilisent les App*)
+│   │   ├── DataGrid.razor
+│   │   ├── Dialog.razor
+│   │   ├── Button.razor
+│   │   ├── TextBox.razor
+│   │   └── Notification.razor
+│   └── Shared/                 ← Composants métier réutilisables (utilisent les wrappers Kit)
 │       ├── PanneauDetail.razor
 │       └── BarreRecherche.razor
-├── Pages/                      ← Pages métier (utilisent App* et Shared/)
+├── Pages/                      ← Pages métier (utilisent wrappers Kit et Shared/)
 │   └── Articles.razor
 └── Layout/
 ```
@@ -68,7 +68,7 @@ Les `_Imports.razor` des autres dossiers n'ont PAS ces using.
 
 ## Templates de wrappers
 
-### AppDataGrid — Grille de données
+### DataGrid — Grille de données
 
 ```razor
 @typeparam TItem
@@ -83,57 +83,51 @@ Les `_Imports.razor` des autres dossiers n'ont PAS ces using.
                 class="@CssClass"
                 RowSelect="@OnLigneSelectionnee"
                 Count="@NombreTotal"
-                LoadData="@OnChargementDemande">
+                LoadData="@OnChargementDemande"
+                @attributes="AttributsSupplementaires">
     @Colonnes
 </RadzenDataGrid>
 
 @code {
-    /// <summary>Données à afficher dans la grille.</summary>
     [Parameter, EditorRequired]
     public IEnumerable<TItem> Source { get; set; } = [];
 
-    /// <summary>Template des colonnes (RadzenDataGridColumn via RenderFragment).</summary>
     [Parameter, EditorRequired]
     public RenderFragment? Colonnes { get; set; }
 
-    /// <summary>Indique si la grille est en cours de chargement.</summary>
     [Parameter]
     public bool EnChargement { get; set; }
 
-    /// <summary>Active la pagination.</summary>
     [Parameter]
     public bool Pagination { get; set; } = true;
 
-    /// <summary>Nombre d'éléments par page.</summary>
     [Parameter]
     public int TaillePage { get; set; } = 20;
 
-    /// <summary>Active le tri sur les colonnes.</summary>
     [Parameter]
     public bool TriAutorise { get; set; } = true;
 
-    /// <summary>Nombre total d'éléments (pour pagination serveur).</summary>
     [Parameter]
     public int NombreTotal { get; set; }
 
-    /// <summary>Callback quand une ligne est sélectionnée.</summary>
     [Parameter]
     public EventCallback<TItem> OnLigneSelectionnee { get; set; }
 
-    /// <summary>Callback pour chargement serveur (pagination, tri).</summary>
     [Parameter]
     public EventCallback<LoadDataArgs> OnChargementDemande { get; set; }
 
-    /// <summary>Classes CSS additionnelles.</summary>
     [Parameter]
     public string? CssClass { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AttributsSupplementaires { get; set; }
 }
 ```
 
 #### Usage dans une page métier
 
 ```razor
-<AppDataGrid TItem="ArticleResume"
+<DataGrid TItem="ArticleResume"
              Source="@Presenter.ArticlesAffiches"
              EnChargement="@Presenter.IndicateurChargementListeVisible"
              OnLigneSelectionnee="OnArticleSelectionne">
@@ -143,7 +137,7 @@ Les `_Imports.razor` des autres dossiers n'ont PAS ces using.
         <RadzenDataGridColumn TItem="ArticleResume" Property="DatePublication" Title="Date" Width="120px"
                               FormatString="{0:dd/MM/yyyy}" />
     </Colonnes>
-</AppDataGrid>
+</DataGrid>
 
 @code {
     private async Task OnArticleSelectionne(ArticleResume article)
@@ -160,7 +154,7 @@ en même temps que le wrapper, pas page par page.
 
 ---
 
-### AppDialog — Dialogue modal
+### Dialog — Dialogue modal
 
 ```razor
 <RadzenDialog @ref="_dialog" />
@@ -168,7 +162,6 @@ en même temps que le wrapper, pas page par page.
 @code {
     private RadzenDialog _dialog = default!;
 
-    /// <summary>Service Radzen injecté pour piloter le dialogue.</summary>
     [Inject]
     private DialogService DialogService { get; set; } = default!;
 }
@@ -182,11 +175,11 @@ namespace MonApp.UI.Blazor.Components.Kit;
 
 using Radzen;
 
-public class AppDialogService
+public class [Projet]DialogService
 {
     private readonly DialogService _radzenDialog;
 
-    public AppDialogService(DialogService radzenDialog)
+    public [Projet]DialogService(DialogService radzenDialog)
     {
         _radzenDialog = radzenDialog;
     }
@@ -224,12 +217,12 @@ public class AppDialogService
 ```csharp
 // Program.cs
 builder.Services.AddScoped<DialogService>();      // Radzen
-builder.Services.AddScoped<AppDialogService>();    // Wrapper maison
+builder.Services.AddScoped<[Projet]DialogService>();    // Wrapper maison
 ```
 
 ---
 
-### AppButton — Bouton
+### Button — Bouton
 
 ```razor
 <RadzenButton Text="@Libelle"
@@ -237,7 +230,8 @@ builder.Services.AddScoped<AppDialogService>();    // Wrapper maison
               Disabled="@Desactive"
               IsBusy="@EnCours"
               Click="@OnClic"
-              class="@CssClass" />
+              class="@CssClass"
+              @attributes="AttributsSupplementaires" />
 
 @code {
     [Parameter, EditorRequired]
@@ -257,12 +251,15 @@ builder.Services.AddScoped<AppDialogService>();    // Wrapper maison
 
     [Parameter]
     public string? CssClass { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AttributsSupplementaires { get; set; }
 }
 ```
 
 ---
 
-### AppTextBox — Champ texte
+### TextBox — Champ texte
 
 ```razor
 <RadzenTextBox Value="@Valeur"
@@ -270,7 +267,8 @@ builder.Services.AddScoped<AppDialogService>();    // Wrapper maison
                Disabled="@Desactive"
                MaxLength="@LongueurMax"
                Change="@OnValeurChange"
-               class="@CssClass" />
+               class="@CssClass"
+               @attributes="AttributsSupplementaires" />
 
 @code {
     [Parameter]
@@ -290,12 +288,15 @@ builder.Services.AddScoped<AppDialogService>();    // Wrapper maison
 
     [Parameter]
     public string? CssClass { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AttributsSupplementaires { get; set; }
 }
 ```
 
 ---
 
-### AppDropDown — Liste déroulante
+### DropDown — Liste déroulante
 
 ```razor
 @typeparam TValue
@@ -309,7 +310,8 @@ builder.Services.AddScoped<AppDialogService>();    // Wrapper maison
                 Disabled="@Desactive"
                 AllowClear="@EffacableAutorise"
                 Change="@OnChangement"
-                class="@CssClass" />
+                class="@CssClass"
+                @attributes="AttributsSupplementaires" />
 
 @code {
     [Parameter, EditorRequired]
@@ -338,6 +340,9 @@ builder.Services.AddScoped<AppDialogService>();    // Wrapper maison
 
     [Parameter]
     public string? CssClass { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AttributsSupplementaires { get; set; }
 }
 ```
 
@@ -371,7 +376,7 @@ La page fait le pont entre les deux.
 
 <h1>Articles</h1>
 
-<AppDropDown TValue="string"
+<DropDown TValue="string"
              Source="@Presenter.CategoriesDisponibles.Select(c => new { Id = c, Libelle = c })"
              Valeur="@Presenter.FiltreCategorie"
              ProprieteTexte="Libelle"
@@ -379,7 +384,7 @@ La page fait le pont entre les deux.
              Placeholder="Toutes les catégories"
              OnChangement="OnFiltreChange" />
 
-<AppDataGrid TItem="ArticleResume"
+<DataGrid TItem="ArticleResume"
              Source="@Presenter.ArticlesAffiches"
              EnChargement="@Presenter.IndicateurChargementListeVisible"
              OnLigneSelectionnee="OnArticleSelectionne">
@@ -387,7 +392,7 @@ La page fait le pont entre les deux.
         <RadzenDataGridColumn TItem="ArticleResume" Property="Titre" Title="Titre" />
         <RadzenDataGridColumn TItem="ArticleResume" Property="Categorie" Title="Catégorie" Width="150px" />
     </Colonnes>
-</AppDataGrid>
+</DataGrid>
 
 @if (Presenter.PanneauDetailVisible)
 {
@@ -444,4 +449,4 @@ La page fait le pont entre les deux.
 - [ ] Les valeurs par défaut sont centralisées dans le wrapper
 - [ ] Le Presenter ne référence aucun type Radzen
 - [ ] Le câblage Presenter ↔ Wrapper passe par la page (pas de couplage direct)
-- [ ] Le wrapper a un commentaire `<summary>` sur chaque Parameter public
+

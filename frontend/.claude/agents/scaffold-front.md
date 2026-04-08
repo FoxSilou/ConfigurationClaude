@@ -60,7 +60,7 @@ All architecture rules are defined in skill `scaffold-architecture` (preloaded).
 
 - **Hexagonal Frontend** — `Blazor -> Domain <- Infrastructure`. UI.Domain is pure C#, zero Blazor dependency.
 - **Presenter = intelligence UI** — the `.razor` only binds. Presenter is C# pur, Scoped in DI.
-- **UI Kit encapsulation** — `App*` wrappers in `Components/Kit/`. `@using Radzen` confined there only.
+- **UI Kit encapsulation** — Kit wrappers (Button, TextBox, DataGrid, etc.) in `Components/Kit/`. `@using Radzen` confined there only.
 - **Gateway ports** use immutable DTOs (`record`), not `HttpResponseMessage` or `JsonElement`.
 - **`I[Feature]Gateway`** (what) / **`Http[Feature]Gateway`** (how) via `AddHttpClient<,>()`.
 - **bUnit** default for Presenter tests, **Playwright** reserved for UI interaction bugs.
@@ -127,10 +127,11 @@ Inventory what exists and what is missing in the frontend foundation.
 | **UI Domain project** | Does a pure C# project for Presenters/Ports exist? | `src/UI.Domain/` |
 | **UI Infrastructure project** | Does a project for Gateway implementations exist? | `src/UI.Infrastructure/` |
 | **Layout** | Does `MainLayout.razor` exist? | `Layout/` |
+| **NavMenu** | Does `NavMenu.razor` exist in Layout/? | `Layout/NavMenu.razor` |
 | **Routing** | Is `App.razor` or equivalent configured? | Root |
 | **Components/Kit/** | Does the UI Kit wrapper directory exist? | `Components/Kit/` |
 | **Components/Kit/_Imports.razor** | Does it contain `@using Radzen`? | `Components/Kit/_Imports.razor` |
-| **Base wrappers** | Do `AppButton`, `AppTextBox`, `AppDataGrid`, `AppDialog`, `AppDropDown` exist? | `Components/Kit/` |
+| **Base wrappers** | Do `Button`, `TextBox`, `DataGrid`, `Dialog`, `DropDown` exist? | `Components/Kit/` |
 | **Components/Shared/** | Does the shared components directory exist? | `Components/Shared/` |
 | **Pages/** | Do any routable pages exist? | `Pages/` |
 | **Presenters/** | Does the Presenters directory exist with `EtatChargement`? | `UI.Domain/Presenters/` |
@@ -173,11 +174,11 @@ Save to: `docs/scaffold-frontend-<date>.md`
 |---|---|---|
 | Components/Kit/ directory | ✅ / ❌ | |
 | Kit/_Imports.razor (@using Radzen) | ✅ / ❌ | |
-| AppButton | ✅ / ❌ | |
-| AppTextBox | ✅ / ❌ | |
-| AppDataGrid | ✅ / ❌ | |
-| AppDialog / AppDialogService | ✅ / ❌ | |
-| AppDropDown | ✅ / ❌ | |
+| Button | ✅ / ❌ | |
+| TextBox | ✅ / ❌ | |
+| DataGrid | ✅ / ❌ | |
+| Dialog / [Projet]DialogService | ✅ / ❌ | |
+| DropDown | ✅ / ❌ | |
 
 ## Service Layer Status
 
@@ -253,9 +254,14 @@ Create the frontend project structure following the hexagonal architecture.
    └── wwwroot/            <- Static assets
    ```
 5. Configure `App.razor` or equivalent for routing.
-6. Create `Components/Kit/_Imports.razor` with `@using Radzen` and `@using Radzen.Blazor`.
-7. Ensure the root `_Imports.razor` does NOT contain `@using Radzen`.
-8. Add project references:
+6. Create `Layout/NavMenu.razor` with a base navigation menu:
+   - Wrap in a `<nav>` element
+   - Add a `<NavLink>` for the home page (`/`)
+   - Each `<NavLink>` must have a `data-testid` attribute (e.g. `data-testid="nav-accueil"`)
+7. Update `MainLayout.razor` to include `<NavMenu />` in the layout (e.g. inside a `<RadzenSidebar>` or before the body content).
+8. Create `Components/Kit/_Imports.razor` with `@using Radzen` and `@using Radzen.Blazor`.
+9. Ensure the root `_Imports.razor` does NOT contain `@using Radzen`.
+10. Add project references:
    - UI.Blazor references UI.Domain and UI.Infrastructure
    - UI.Infrastructure references UI.Domain
    - UI.Domain references nothing (pure C#)
@@ -289,17 +295,24 @@ Create the base wrapper components for the UI library in use (Radzen by default)
 
 Follow the `blazor-ui-kit` skill for all templates.
 
-1. Create `Components/Kit/AppButton.razor` — wraps `RadzenButton`
+1. Create `Components/Kit/Button.razor` — wraps `RadzenButton`
    - Parameters: `Libelle`, `OnClic`, `Desactive`, `EnCours`, `Style`, `CssClass`
-2. Create `Components/Kit/AppTextBox.razor` — wraps `RadzenTextBox`
+2. Create `Components/Kit/TextBox.razor` — wraps `RadzenTextBox`
    - Parameters: `Valeur`, `OnValeurChange`, `Placeholder`, `Desactive`, `LongueurMax`, `CssClass`
-3. Create `Components/Kit/AppDataGrid.razor` — wraps `RadzenDataGrid<T>`
+3. Create `Components/Kit/DataGrid.razor` — wraps `RadzenDataGrid<T>`
    - Parameters: `Source`, `Colonnes`, `EnChargement`, `Pagination`, `TaillePage`, `TriAutorise`, `NombreTotal`, `OnLigneSelectionnee`, `OnChargementDemande`, `CssClass`
-4. Create `Components/Kit/AppDropDown.razor` — wraps `RadzenDropDown<T>`
+4. Create `Components/Kit/DropDown.razor` — wraps `RadzenDropDown<T>`
    - Parameters: `Source`, `Valeur`, `ProprieteTexte`, `ProprieteValeur`, `Placeholder`, `Desactive`, `EffacableAutorise`, `OnChangement`, `CssClass`
-5. Create `AppDialogService.cs` — wraps `DialogService`
+5. Create `[Projet]DialogService.cs` — wraps `DialogService`
    - Methods: `ConfirmerAsync(titre, message)`, `AfficherAsync<TComponent>(titre, parametres)`, `Fermer()`
-6. Register `DialogService` and `AppDialogService` in DI.
+6. Register `DialogService` and `[Projet]DialogService` in DI.
+
+**⚠️ Chaque wrapper DOIT capturer les attributs HTML non déclarés** pour le passthrough de `data-testid`, `id`, `aria-*` :
+```csharp
+[Parameter(CaptureUnmatchedValues = true)]
+public Dictionary<string, object>? AttributsSupplementaires { get; set; }
+```
+Et binder sur l'élément Radzen racine : `@attributes="AttributsSupplementaires"`.
 
 ### Verification
 
@@ -487,7 +500,7 @@ Project structure:
 - UI.Blazor : Pages/, Components/Kit/, Components/Shared/, Layout/
 
 UI Kit:
-- AppButton, AppTextBox, AppDataGrid, AppDropDown, AppDialogService
+- Button, TextBox, DataGrid, DropDown, [Projet]DialogService
 - @using Radzen confine dans Components/Kit/ ✅
 
 Service layer:
@@ -556,6 +569,7 @@ Inventory what exists and what is missing for this feature area.
 | **Presenter** | Does `[Feature]Presenter` exist? | `UI.Domain/Presenters/[Feature]/` |
 | **Page** | Does the routable page exist? | `Pages/` |
 | **Components** | Do feature-specific components exist? | `Components/Shared/` |
+| **NavMenu entry** | Does NavMenu have a link to this feature's page? | `Layout/NavMenu.razor` |
 | **DI registration** | Are gateway + presenter registered? | `Program.cs` |
 | **Fake Gateway** | Does `Fake[Feature]Gateway` exist? | `tests/UI.Domain.Tests/Presenters/Fakes/` |
 
@@ -688,6 +702,11 @@ Create the HTTP gateway implementation.
 ### Verification
 
 Run `dotnet build` — must compile.
+Verify in `Program.cs` that BOTH registrations are present:
+- `AddHttpClient<I[Feature]Gateway, Http[Feature]Gateway>(...)` — the port→adapter binding
+- `AddScoped<[Feature]Presenter>()` (if already created, otherwise will be added in Phase 3)
+
+**⚠️ A missing Gateway registration compiles but fails at runtime with `CannotResolveService`.**
 
 ### Gate — End of PHASE 2
 
@@ -695,7 +714,7 @@ Run `dotnet build` — must compile.
 
 Present:
 - Gateway created (methods implemented)
-- DI registration
+- DI registration added in `Program.cs` (show the exact line)
 - Build status ✅
 
 Ask:
@@ -718,12 +737,19 @@ Create the page and component shells wired to the Presenter.
    - Wire `OnInitializedAsync` -> `Presenter.ChargerAsync()`
    - Wire `Presenter.OnChanged` -> `InvokeAsync(StateHasChanged)`
    - Wire `Dispose` -> unsubscribe `OnChanged`
-   - Use `App*` wrappers from the UI Kit — **never direct Radzen components**
+   - Use Kit wrappers (Button, TextBox, DataGrid, etc.) — **never direct Radzen components**
    - Add `data-testid` attributes on interactive elements
 
-2. Create feature-specific shared components if needed (e.g., `PanneauDetail.razor`):
+2. Add a `<NavLink>` entry in `Layout/NavMenu.razor` for this new page:
+   ```razor
+   <NavLink href="[feature-route]" Match="NavLinkMatch.All" data-testid="nav-[feature]">
+       [Feature Label]
+   </NavLink>
+   ```
+
+3. Create feature-specific shared components if needed (e.g., `PanneauDetail.razor`):
    - Receive data via `[Parameter]` — not by injecting the Presenter directly
-   - Use `App*` wrappers
+   - Use Kit wrappers (Button, TextBox, DataGrid, etc.)
 
 3. Register the Presenter in DI:
    ```csharp
@@ -742,6 +768,12 @@ Create the page and component shells wired to the Presenter.
 Run `dotnet build` — must compile.
 Run `dotnet test` — all existing tests must remain green.
 
+**⚠️ DI chain verification** — Open `Program.cs` and confirm the COMPLETE chain is registered:
+1. `AddHttpClient<I[Feature]Gateway, Http[Feature]Gateway>(...)` — port→adapter
+2. `AddScoped<[Feature]Presenter>()` — presenter
+
+If ANY link in the chain is missing, the app will compile but crash at runtime with `CannotResolveService`. This is the #1 scaffolding pitfall.
+
 ### Gate — End of PHASE 3
 
 ⛔ **GATE: Stop after creating the page and components.**
@@ -749,7 +781,7 @@ Run `dotnet test` — all existing tests must remain green.
 Present:
 - Page created (route, Presenter wiring, wrappers used)
 - Components created (if any)
-- DI registration
+- DI chain complete in `Program.cs` (list both Gateway AND Presenter registrations)
 - Build status ✅
 - Existing tests status ✅
 
@@ -842,7 +874,7 @@ UI.Infrastructure:
 UI.Blazor:
 - Page: <route>
 - Components: <list or "none">
-- Wrappers used: <list of App* components>
+- Wrappers used: <list of Kit components>
 
 Tests:
 - Fake[Feature]Gateway: nominal + error ✅
@@ -877,17 +909,18 @@ src/
 │   ├── App.razor
 │   ├── _Imports.razor                  # PAS de @using Radzen ici
 │   ├── Layout/
-│   │   └── MainLayout.razor
+│   │   ├── MainLayout.razor
+│   │   └── NavMenu.razor
 │   ├── Pages/
 │   │   └── [Feature].razor
 │   ├── Components/
 │   │   ├── Kit/                        # Seul endroit avec @using Radzen
 │   │   │   ├── _Imports.razor          # @using Radzen / @using Radzen.Blazor
-│   │   │   ├── AppButton.razor
-│   │   │   ├── AppTextBox.razor
-│   │   │   ├── AppDataGrid.razor
-│   │   │   ├── AppDropDown.razor
-│   │   │   └── AppDialogService.cs
+│   │   │   ├── Button.razor
+│   │   │   ├── TextBox.razor
+│   │   │   ├── DataGrid.razor
+│   │   │   ├── DropDown.razor
+│   │   │   └── [Projet]DialogService.cs
 │   │   └── Shared/
 │   │       └── PanneauDetail.razor
 │   ├── Models/

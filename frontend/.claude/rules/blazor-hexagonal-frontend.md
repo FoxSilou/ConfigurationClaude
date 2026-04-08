@@ -28,3 +28,11 @@ Ne PAS extraire pour un simple toggle isolé sans combinatoire.
 
 Les tests ciblent le Presenter, jamais le composant. Nommage : `{Presenter}_{Comportement}Tests.cs`.
 Les noms de méthodes de test suivent le format : `Action_doit_resultat_quand_contexte`.
+
+### Commentaires AAA obligatoires
+
+Chaque méthode de test DOIT contenir les commentaires `// Arrange`, `// Act`, `// Assert` pour structurer les trois phases. Pas d'exception, même pour les tests courts.
+
+### Pas de commentaires XML
+
+Le code doit être auto-documentant par le nommage. Les `/// <summary>` sont interdits sur les propriétés, méthodes et classes. Seuls les commentaires `// Arrange`, `// Act`, `// Assert` sont autorisés (dans les tests uniquement).

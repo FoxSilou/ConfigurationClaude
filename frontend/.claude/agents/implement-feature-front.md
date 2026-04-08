@@ -200,6 +200,7 @@ No user gates during TDD. Run the full cycle (RED -> GREEN -> REFACTOR) for ever
 - **French naming.** Test methods: `Action_doit_resultat_quand_contexte`. Properties and methods in French.
 - **EtatChargement enum.** Reuse `Inactif`, `EnCours`, `Charge`, `EnErreur` for loading states.
 - **OnChanged event.** The Presenter notifies UI changes via `event Action? OnChanged`.
+- **AAA comments mandatory.** Every test method MUST contain `// Arrange`, `// Act`, `// Assert` comments. No exceptions.
 
 ### Gate -- End of PHASE 1
 
@@ -229,9 +230,10 @@ Wire the Blazor page/component to the Presenter. No logic here -- pure binding.
    - Use `InvokeAsync(StateHasChanged)` for notification handler
    - Bind visibility to Presenter derived properties
    - Bind actions to Presenter methods
-3. Use `App*` wrapper components from the UI Kit (never raw Radzen)
+3. Use Kit wrapper components (Button, TextBox, DataGrid, etc.) — never raw Radzen
 4. Add `data-testid` attributes on interactive elements
 5. Register the Presenter as `Scoped` in DI
+6. Add a `<NavLink>` entry in `Layout/NavMenu.razor` for this page if one does not already exist
 
 ### Optional: bUnit smoke test
 
@@ -282,6 +284,12 @@ A frontend feature is considered **DONE** when:
 - The `.razor` component is wired and renders correctly
 - The HTTP Gateway is implemented and registered
 - DI is configured for the full chain: Component -> Presenter -> Gateway
+
+**⚠️ DI chain verification** — Before declaring done, open `Program.cs` and confirm ALL registrations are present:
+1. `AddHttpClient<I<Feature>Gateway, Http<Feature>Gateway>(...)` — port→adapter
+2. `AddScoped<<Feature>Presenter>()` — presenter
+
+A missing registration compiles but crashes at runtime with `CannotResolveService`. This is the #1 frontend scaffolding pitfall.
 
 Report:
 - All tests passing

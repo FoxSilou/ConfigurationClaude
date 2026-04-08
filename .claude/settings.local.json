@@ -61,7 +61,13 @@
       "Bash(mkdir -p src/Identite/Write/Identite.Write.Domain/Ports)",
       "Bash(mkdir -p src/Identite/Write/Identite.Write.Application/Ports)",
       "Bash(find C:\\\\Developpement\\\\Perso\\\\ConfigurationClaude\\\\backend:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(mkdir -p src/Shared/Read)",
+      "Bash(rm src/Shared/Read/Shared.Read.Infrastructure/Class1.cs)",
+      "Bash(pdftotext:*)",
+      "Bash(start:*)",
+      "Bash(grep -E \"\\(///|/\\\\*|Arrange|Act|Assert\\)\")",
+      "Bash(grep -r \"summary\\\\|///\" /c/Developpement/Perso/ConfigurationClaude/frontend/.claude --include=\"*.md\")"
     ]
   }
 }

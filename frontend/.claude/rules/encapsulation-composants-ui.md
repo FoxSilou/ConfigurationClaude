@@ -15,8 +15,9 @@ directement dans les pages ou composants métier. Ils sont systématiquement enc
 
 ## Convention de nommage
 
-Les wrappers sont préfixés `App` : `AppDataGrid`, `AppDialog`, `AppButton`, `AppTextBox`.
-Ils vivent dans un dossier `Components/Shared/` ou `Components/Kit/`.
+Les wrappers portent le nom du concept UI sans préfixe : `DataGrid`, `Dialog`, `Button`, `TextBox`, `DropDown`.
+Pour les services, utiliser `[Projet]DialogService` pour éviter le conflit avec le `DialogService` Radzen.
+Ils vivent dans le dossier `Components/Kit/`.
 
 ## Ce qui est interdit dans une page .razor
 
@@ -25,5 +26,5 @@ Ils vivent dans un dossier `Components/Shared/` ou `Components/Kit/`.
 
 ## Ce qui est autorisé
 
-- `<AppDataGrid>`, `<AppButton>` etc. dans les pages métier
+- `<DataGrid>`, `<Button>`, `<TextBox>` etc. dans les pages métier
 - `@using Radzen` uniquement dans les fichiers wrapper (Components/Kit/)

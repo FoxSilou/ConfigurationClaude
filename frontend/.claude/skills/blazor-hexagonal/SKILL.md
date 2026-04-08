@@ -291,6 +291,8 @@ public class [Feature]Presenter_[Aspect]Tests
 }
 ```
 
+**⚠️ Les commentaires `// Arrange`, `// Act`, `// Assert` sont OBLIGATOIRES dans chaque méthode de test. Ne jamais les omettre, même pour les tests courts.**
+
 Convention de découpage des fichiers de tests :
 - Un fichier par aspect du Presenter : `_AffichageTests`, `_FiltreTests`, `_NavigationTests`, `_ErreurTests`
 - Les données de test sont des `static readonly` en haut de classe
@@ -300,16 +302,18 @@ Convention de découpage des fichiers de tests :
 
 ## Enregistrement DI
 
+**⚠️ Les DEUX enregistrements ci-dessous sont obligatoires. Un oubli compile mais crashe au runtime avec `CannotResolveService`.**
+
 ```csharp
 // Program.cs
 
-// Ports → Adapters
+// 1. Ports → Adapters (OBLIGATOIRE — sinon le Presenter ne peut pas résoudre son gateway)
 builder.Services.AddHttpClient<I[Feature]Gateway, Http[Feature]Gateway>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"]!);
 });
 
-// Presenters — Scoped (un par circuit Blazor Server / tab WASM)
+// 2. Presenters — Scoped (OBLIGATOIRE — sinon le composant .razor ne peut pas s'injecter)
 builder.Services.AddScoped<[Feature]Presenter>();
 ```
 
@@ -317,6 +321,8 @@ Le Presenter est **Scoped**, pas Singleton ni Transient :
 - Scoped = un par circuit/utilisateur en Blazor Server, un par tab en WASM
 - Singleton serait partagé entre utilisateurs (dangereux)
 - Transient recréerait le Presenter à chaque injection (perte d'état)
+
+**Règle de vérification** : après chaque scaffolding ou implémentation, ouvrir `Program.cs` et vérifier que la chaîne DI complète est enregistrée : `Gateway` + `Presenter`. Chaque Presenter qui injecte un port dans son constructeur nécessite que ce port soit enregistré.
 
 ---
 
