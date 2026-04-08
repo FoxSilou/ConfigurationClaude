@@ -46,7 +46,7 @@ Inventory what exists and what is missing in the shared foundation.
 | **Shared exceptions** | DomainException, NotFoundException | `src/Shared/Write/Exceptions/` |
 | **Shared.Write.Infrastructure project** | Does `Shared.Write.Infrastructure.csproj` exist? | `src/Shared/Write/` |
 | **Command messaging infrastructure** | MediatRCommandBus, command wrappers, adapters, AddWriteMessaging() | `src/Shared/Write/Messaging/` (in Shared.Write.Infrastructure) |
-| **ES infrastructure** | SqlEventStore, WriteDbContext, StoredEvent, AggregateSnapshot, AddEventSourcing(), IStateRebuilder, EventSerializer, TypedIdConverterFactory, ValueObjectConverterFactory, ConcurrencyException | `src/Shared/Write/` (in Shared.Write.Infrastructure) |
+| **ES infrastructure** | SqlEventStore, WriteDbContext, StoredEvent, AggregateSnapshot, AddEventSourcing(), IStateRebuilder, EventSerializer, IStoredEventPayload, IStoredEventReader, IEventPayloadMapper, ConcurrencyException | `src/Shared/Write/` (in Shared.Write.Infrastructure) |
 | **Shared.Read.Infrastructure project** | Does `Shared.Read.Infrastructure.csproj` exist? | `src/Shared/Read/` |
 | **Query messaging infrastructure** | MediatRQueryBus, query wrappers, adapters, AddReadMessaging() | `src/Shared/Read/Messaging/` (in Shared.Read.Infrastructure) |
 | **API project** | Does the Api `.csproj` exist? | `src/Api/` |
@@ -104,8 +104,9 @@ Save to: `docs/scaffold-general-<date>.md`
 | AddEventSourcing() extension | ✅ / ❌ | |
 | IStateRebuilder<TAggregate, TId> | ✅ / ❌ | |
 | EventSerializer (assembly scanning, discriminator, snapshot) | ✅ / ❌ | |
-| TypedIdConverterFactory | ✅ / ❌ | |
-| ValueObjectConverterFactory | ✅ / ❌ | |
+| IStoredEventPayload (marker interface) | ✅ / ❌ | |
+| IStoredEventReader | ✅ / ❌ | |
+| IEventPayloadMapper | ✅ / ❌ | |
 | ConcurrencyException | ✅ / ❌ | |
 
 ## Shared.Read.Infrastructure Status
@@ -209,20 +210,23 @@ Create Shared.Write.Infrastructure with command messaging (MediatR) and Event So
    Without this, MediatR's `ISender.Send()` cannot resolve the adapter and dispatch silently fails — `RegisterServicesFromAssembly` cannot discover open generic adapters in a different assembly.
 
 3. Create ES infrastructure:
-   - `Serialization/EventSerializer.cs`, `Serialization/TypedIdConverter.cs`, `Serialization/TypedIdConverterFactory.cs`, `Serialization/ValueObjectConverterFactory.cs`
+   - `Serialization/EventSerializer.cs` — serializes `IStoredEventPayload` records (primitives only, no custom JSON converters)
    - `EventStore/Models/StoredEvent.cs`, `EventStore/Models/AggregateSnapshot.cs` — EF Core persistence models for the event store
    - `EventStore/WriteDbContext.cs` — shared DbContext with `DbSet<StoredEvent>`, `DbSet<AggregateSnapshot>`, unique constraint on `(EntityName, EntityId, StreamVersion)`
-   - `EventStore/SqlEventStore.cs` — implements `IEventStore` using `WriteDbContext` + `EventSerializer`
+   - `EventStore/SqlEventStore.cs` — implements `IEventStore` and `IStoredEventReader` using `WriteDbContext` + `EventSerializer` + `IEventPayloadMapper`
    - `EventStore/InMemoryEventStore.cs` — in-memory implementation for unit tests
-   - `EventStore/ServiceCollectionExtensions.cs` — `AddEventSourcing(string connectionString, params Assembly[] domainAssemblies)` registers `WriteDbContext`, `EventSerializer`, `SqlEventStore`
+   - `EventStore/ServiceCollectionExtensions.cs` — `AddEventSourcing(string connectionString, params Assembly[] payloadAssemblies)` registers `WriteDbContext`, `EventSerializer`, `SqlEventStore`, `IStoredEventReader`
    - `EventStore/IStateRebuilder.cs`
+   - `EventStore/IStoredEventPayload.cs` — marker interface for payload records
+   - `EventStore/IStoredEventReader.cs` — reads payloads from the store
+   - `EventStore/IEventPayloadMapper.cs` — maps `IDomainEvent` → `IStoredEventPayload`
    - `Exceptions/ConcurrencyException.cs`
 
    ⚠️ **CRITICAL: `EventSerializer` must use `type.Name` (not `type.FullName`) as the type map key** — the `SqlEventStore` stores `GetType().Name`.
 
-   ⚠️ **CRITICAL: `EventSerializer` constructor takes `params Assembly[]`** — scans for `IDomainEvent` implementations and builds a discriminator → CLR type map. Must include `GetDiscriminator()`, `Serialize()`, `Deserialize(discriminator, payload)`, `SerializeSnapshot()`, `DeserializeSnapshot()`.
+   ⚠️ **CRITICAL: `EventSerializer` constructor takes `params Assembly[]`** — scans for `IStoredEventPayload` implementations and builds a discriminator → CLR type map. Must include `GetDiscriminator()`, `Serialize()`, `Deserialize(discriminator, json)`, `SerializeSnapshot()`, `DeserializeSnapshot()`.
 
-   ⚠️ **CRITICAL: `EventSerializer` default `JsonSerializerOptions` must include `TypedIdConverterFactory` and `ValueObjectConverterFactory`** — without these, serialization of Value Objects and Typed Ids in events fails.
+   ⚠️ **CRITICAL: `EventSerializer` uses plain `JsonSerializerOptions` with no custom converters** — payloads contain only primitives (`Guid`, `string`, `DateTimeOffset`), so standard System.Text.Json handles everything.
 
 ### Verification
 
@@ -337,8 +341,10 @@ Create the E2E test project with WebApplicationFactory and a smoke test.
    - Uses `Testcontainers.MsSql` — starts a SQL Server container in `InitializeAsync()`
    - Replaces `WriteDbContext` and `ReadDbContext` with `UseSqlServer(_sqlContainer.GetConnectionString())`
    - Replaces `TimeProvider` with `FakeTimeProvider`
+     > `FakeTimeProvider` : namespace `Microsoft.Extensions.Time.Testing` (NuGet : `Microsoft.Extensions.TimeProvider.Testing`)
    - Calls `EnsureCreated()` on `WriteDbContext` and `ReadDbContext` after container startup
    - Implements `IAsyncLifetime` for lifecycle (start container → stop container)
+     > **⚠️ xUnit 2.9.x** : `IAsyncLifetime` retourne **`Task`**, PAS `ValueTask`. Ne pas utiliser `ValueTask` — erreur de compilation.
 3. Create `E2ECollection.cs`:
    - `[CollectionDefinition("E2E")]` with `ICollectionFixture<E2EFixture>`
 4. Create smoke test following E2E conventions from skill `e2e-testing`:
@@ -383,8 +389,8 @@ Shared.Write.Infrastructure:
 - WriteDbContext + StoredEvent + AggregateSnapshot (shared, single DB <SolutionName>_Write)
 - AddEventSourcing(connectionString, assemblies) — one-line DI registration
 - IStateRebuilder<TAggregate, TId>
-- EventSerializer (assembly scanning, discriminator, type.Name key, snapshot support, with TypedIdConverterFactory + ValueObjectConverterFactory)
-- TypedIdConverterFactory, ValueObjectConverterFactory
+- EventSerializer (assembly scanning, discriminator, type.Name key, snapshot support, no custom converters — payloads are primitives)
+- IStoredEventPayload, IStoredEventReader, IEventPayloadMapper
 - InMemoryEventStore (for unit tests)
 - ConcurrencyException
 

@@ -36,8 +36,8 @@ The existing architecture already has strong foundations for Event Sourcing:
 The event sourcing mechanics live entirely in Infrastructure:
 1. An `IStateRebuilder<TAggregate, TId>` interface in `Shared.Write.Infrastructure`
 2. One concrete `StateRebuilder` per event-sourced aggregate (Infrastructure, per BC)
-3. An `ITypedId<TPrimitive>` interface in `Shared.Write.Domain` — implemented by all Typed Ids, used for JSON serialization without reflection
-4. Shared infrastructure types (event store, serializer, converters) in `Shared.Write.Infrastructure`
+3. An `ITypedId<TPrimitive>` interface in `Shared.Write.Domain` — implemented by all Typed Ids, used by the `Reconstituer` pattern
+4. Shared infrastructure types (event store, serializer, payload interfaces) in `Shared.Write.Infrastructure`
 
 ## When to use Event Sourcing vs state-based persistence
 
@@ -67,7 +67,7 @@ Read `references/event-store-custom.md` for the persistence layer including:
 - `IEventStore` port and SQL implementation
 - Optimistic concurrency via expected version (managed by repository, not aggregate)
 - Snapshot strategy and implementation
-- Serialization approach (System.Text.Json with `ITypedId` converters)
+- Serialization approach (System.Text.Json with primitive payloads, no custom converters)
 - EF Core integration for the event store tables
 
 ## Projections and Read Models
@@ -97,10 +97,12 @@ src/
 │   │       ├── Exceptions/
 │   │       │   └── ConcurrencyException.cs
 │   │       ├── EventStore/
-│   │       │   └── IStateRebuilder.cs
+│   │       │   ├── IStateRebuilder.cs
+│   │       │   ├── IStoredEventPayload.cs
+│   │       │   ├── IStoredEventReader.cs
+│   │       │   └── IEventPayloadMapper.cs
 │   │       └── Serialization/
-│   │           ├── EventSerializer.cs
-│   │           └── TypedIdConverterFactory.cs
+│   │           └── EventSerializer.cs
 │   └── Read/                                           ← Created when needed
 └── <BoundedContext>/
     ├── Write/

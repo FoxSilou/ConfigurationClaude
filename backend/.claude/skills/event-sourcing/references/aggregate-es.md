@@ -106,43 +106,43 @@ public interface IPartieRepository
 
 ## The state rebuilder — Infrastructure only
 
-The state rebuilder is the only new concept. It is a pure Infrastructure class that knows how to replay events into aggregate state. It bridges the gap between the event store (which stores events) and `Reconstituer` (which needs state parameters).
+The state rebuilder is the only new concept. It is a pure Infrastructure class that knows how to replay event payloads into aggregate state. It bridges the gap between the event store (which stores payloads) and `Reconstituer` (which needs state parameters).
 
-### Fold into a primitive state accumulator, then Reconstituer
+### Fold payloads into a primitive state accumulator, then Reconstituer
 
-A lightweight state class accumulates changes from events using **primitives only** (`Guid`, `string`, `int`, enums) — no Value Objects. This ensures no VO validation runs during the fold. Once all events are replayed, the accumulated primitives are converted to Value Objects via `Reconstituer` with **full validation**, and passed to the aggregate's `Reconstituer`.
+The rebuilder receives `IStoredEventPayload` objects — payload records that already contain only primitives. A lightweight state class accumulates changes. Once all payloads are replayed, the accumulated primitives are converted to Value Objects via `Reconstituer` with **full validation**, and passed to the aggregate's `Reconstituer`.
 
 ```csharp
 // Infrastructure/EventStore/StateRebuilders/PartieStateRebuilder.cs
 internal sealed class PartieStateRebuilder : IStateRebuilder<Partie, PartieId>
 {
-    public Partie Rebuild(PartieId id, IReadOnlyCollection<IDomainEvent> events)
+    public Partie Rebuild(PartieId id, IReadOnlyCollection<IStoredEventPayload> payloads)
     {
         var state = new PartieState();
 
-        foreach (var @event in events)
+        foreach (var payload in payloads)
         {
-            switch (@event)
+            switch (payload)
             {
-                case PartieCree e:
-                    state.Id = e.PartieId.Valeur;        // VO → primitif
-                    state.Nom = e.Nom.Valeur;            // VO → primitif
+                case PartieCreePayload e:
+                    state.Id = e.PartieId;               // already a Guid
+                    state.Nom = e.Nom;                   // already a string
                     state.Statut = "EnAttente";
                     break;
 
-                case JoueurRejoint e:
-                    state.Joueurs.Add(e.JoueurId.Valeur); // VO → primitif
+                case JoueurRejointPayload e:
+                    state.Joueurs.Add(e.JoueurId);       // already a Guid
                     break;
 
-                case JoueurParti e:
-                    state.Joueurs.Remove(e.JoueurId.Valeur);
+                case JoueurPartiPayload e:
+                    state.Joueurs.Remove(e.JoueurId);
                     break;
 
-                case PartieDemarree:
+                case PartieDemarreePayload:
                     state.Statut = "EnCours";
                     break;
 
-                case PartieTerminee:
+                case PartieTermineePayload:
                     state.Statut = "Terminee";
                     break;
             }
@@ -167,7 +167,7 @@ internal sealed class PartieStateRebuilder : IStateRebuilder<Partie, PartieId>
 }
 ```
 
-The state class is a throwaway accumulator — it lives as a private nested class inside the rebuilder. It uses only primitives, never Value Objects. The conversion to domain types happens only at the final step, via `Reconstituer` on each VO with full validation.
+The state class is a throwaway accumulator — it lives as a private nested class inside the rebuilder. It uses only primitives, never Value Objects. Since payloads already contain primitives, no `.Valeur` extraction is needed in the fold. The conversion to domain types happens only at the final step, via `Reconstituer` on each VO with full validation.
 
 ## IStateRebuilder interface
 
@@ -177,7 +177,7 @@ public interface IStateRebuilder<TAggregate, TId>
     where TAggregate : AggregateRoot<TId>
     where TId : notnull
 {
-    TAggregate Rebuild(TId id, IReadOnlyCollection<IDomainEvent> events);
+    TAggregate Rebuild(TId id, IReadOnlyCollection<IStoredEventPayload> payloads);
 }
 ```
 
@@ -187,6 +187,7 @@ public interface IStateRebuilder<TAggregate, TId>
 // Infrastructure/Persistence/EventSourcedPartieRepository.cs
 internal sealed class EventSourcedPartieRepository(
     IEventStore eventStore,
+    IStoredEventReader eventReader,
     PartieStateRebuilder rebuilder,
     IDomainEventBus domainEventBus) : IPartieRepository
 {
@@ -207,20 +208,14 @@ internal sealed class EventSourcedPartieRepository(
             _versions[streamKey] = snapshot.Version;
         }
 
-        var events = await eventStore.ReadStreamAsync(streamKey, fromVersion, ct);
+        var payloads = await eventReader.ReadPayloadsAsync(streamKey, fromVersion, ct);
 
-        if (events.Count == 0 && baseAggregate is null) return null;
-        if (events.Count == 0) return baseAggregate;
+        if (payloads.Count == 0 && baseAggregate is null) return null;
+        if (payloads.Count == 0) return baseAggregate;
 
-        // Rebuild: if we have a snapshot base, we need to replay only the delta events.
-        // If no snapshot, replay all events from scratch.
-        var aggregate = events.Count > 0
-            ? rebuilder.Rebuild(id, baseAggregate is null
-                ? events
-                : CombineSnapshotAndDelta(baseAggregate, events))
-            : baseAggregate!;
+        var aggregate = rebuilder.Rebuild(id, payloads);
 
-        _versions[streamKey] = fromVersion + events.Count - 1;
+        _versions[streamKey] = fromVersion + payloads.Count - 1;
         return aggregate;
     }
 
@@ -251,18 +246,10 @@ internal sealed class EventSourcedPartieRepository(
     }
 
     private static StreamKey ToStreamKey(PartieId id) => new("Partie", id.Valeur);
-
-    private static IReadOnlyCollection<IDomainEvent> CombineSnapshotAndDelta(
-        Partie snapshotBase,
-        IReadOnlyCollection<IDomainEvent> deltaEvents)
-    {
-        // For simplicity, replay all events including those already in the snapshot.
-        // In practice, use fromVersion to only replay delta events via the rebuilder.
-        // This is a simplified version — see snapshot section for full implementation.
-        return deltaEvents;
-    }
 }
 ```
+
+Note: The repository uses `IStoredEventReader` for reads (returns `IStoredEventPayload`) and `IEventStore` for writes (accepts `IDomainEvent`). The `IEventStore.AppendToStreamAsync` maps domain events to payloads internally via `IEventPayloadMapper`.
 
 ### Version tracking without polluting the aggregate
 
@@ -270,27 +257,31 @@ The aggregate does not carry a `Version` property — optimistic concurrency is 
 
 ## Snapshots
 
-Snapshots are the set of parameters needed by `Reconstituer`, serialized as JSON. The snapshot class mirrors the rebuilder's state record:
+Snapshots are the set of parameters needed by `Reconstituer`, serialized as JSON. Like payloads, snapshot classes use **primitives only** — no Value Objects, no custom JSON converters needed.
 
 ```csharp
 // Infrastructure/EventStore/Snapshots/PartieSnapshot.cs
 internal sealed class PartieSnapshot
 {
-    public required PartieId Id { get; init; }
-    public required NomDePartie Nom { get; init; }
-    public required StatutPartie Statut { get; init; }
-    public required List<JoueurId> Joueurs { get; init; }
+    public required Guid Id { get; init; }
+    public required string Nom { get; init; }
+    public required string Statut { get; init; }
+    public required List<Guid> Joueurs { get; init; }
 
     public Partie ToAggregate()
-        => Partie.Reconstituer(Id, Nom, Statut, Joueurs);
+        => Partie.Reconstituer(
+            PartieId.Reconstituer(Id),
+            NomDePartie.Reconstituer(Nom),
+            StatutPartie.Reconstituer(Statut),
+            Joueurs.Select(JoueurId.Reconstituer));
 
     public static PartieSnapshot FromAggregate(Partie partie)
         => new()
         {
-            Id = partie.Id,
-            Nom = partie.Nom,
-            Statut = partie.Statut,
-            Joueurs = partie.Joueurs.ToList()
+            Id = partie.Id.Valeur,
+            Nom = partie.Nom.Valeur,
+            Statut = partie.Statut.Valeur,
+            Joueurs = partie.Joueurs.Select(j => j.Valeur).ToList()
         };
 }
 ```
@@ -323,7 +314,7 @@ internal sealed class PartieSnapshot
 
 ## Testing
 
-Aggregate tests are identical to state-based. The rebuilder gets its own tests, with the **round-trip test** being the most important:
+Aggregate tests are identical to state-based. The rebuilder gets its own tests, with the **round-trip test** being the most important. This test validates the full pipeline: domain events → payload mapper → payloads → state rebuilder → aggregate:
 
 ```csharp
 [Fact]
@@ -335,8 +326,10 @@ public void Rebuild_round_trip_devrait_etre_coherent()
     partie.RejoindrePartie(JoueurId.Nouveau(), _maintenant);
     partie.Demarrer(_maintenant);
 
-    var events = partie.DomainEvents.ToList();
-    var rebuilt = _rebuilder.Rebuild(id, events);
+    var payloads = partie.DomainEvents
+        .Select(_mapper.ToPayload)
+        .ToList();
+    var rebuilt = _rebuilder.Rebuild(id, payloads);
 
     rebuilt.Nom.Should().Be(partie.Nom);
     rebuilt.Statut.Should().Be(partie.Statut);

@@ -76,14 +76,6 @@ public interface IEventStore
         CancellationToken ct = default);
 
     /// <summary>
-    /// Reads all events from a stream, optionally starting from a given version.
-    /// </summary>
-    Task<IReadOnlyCollection<IDomainEvent>> ReadStreamAsync(
-        StreamKey streamKey,
-        int fromVersion = 0,
-        CancellationToken ct = default);
-
-    /// <summary>
     /// Loads the latest snapshot for a stream, if one exists.
     /// </summary>
     Task<Snapshot?> LoadSnapshotAsync(
@@ -111,7 +103,7 @@ public class ConcurrencyException(string message)
 
 ### Where to place infrastructure-shared types: `Shared.Write.Infrastructure`
 
-Some types are shared across bounded contexts but are infrastructure concerns, not domain concepts. Examples: `ConcurrencyException`, `EventSerializer`, `TypedIdConverterFactory`, `IStateRebuilder`, `IEventUpcaster`.
+Some types are shared across bounded contexts but are infrastructure concerns, not domain concepts. Examples: `ConcurrencyException`, `EventSerializer`, `IStoredEventPayload`, `IStoredEventReader`, `IStateRebuilder`, `IEventUpcaster`.
 
 These belong in `Shared.Write.Infrastructure` which references `Shared.Write.Domain` (for `IDomainEvent`, `IEventStore`, `ITypedId<T>`) and can take technical dependencies (System.Text.Json, EF Core abstractions).
 
@@ -130,20 +122,89 @@ src/
 │   │   └── ConcurrencyException.cs
 │   ├── EventStore/
 │   │   ├── IStateRebuilder.cs
+│   │   ├── IStoredEventPayload.cs
+│   │   ├── IStoredEventReader.cs
 │   │   └── IEventUpcaster.cs
-│   ├── Serialization/
-│   │   ├── EventSerializer.cs
-│   │   ├── TypedIdConverter.cs
-│   │   └── TypedIdConverterFactory.cs
+│   └── Serialization/
+│       └── EventSerializer.cs
 │   └── Read/                                     ← Created when needed
 └── <BoundedContext>/
     └── Write/
         └── <BC>.Write.Infrastructure.csproj
-            ├── EventStore/StateRebuilders/
-            │   └── PartieStateRebuilder.cs          ← Concrete, per aggregate
+            ├── EventStore/
+            │   ├── Payloads/
+            │   │   └── PartieCreePayload.cs         ← Primitive-only payload per event
+            │   ├── <BC>EventPayloadMapper.cs        ← Maps IDomainEvent → IStoredEventPayload
+            │   └── StateRebuilders/
+            │       └── PartieStateRebuilder.cs      ← Folds payloads → calls Reconstituer
             └── Persistence/
                 └── EventSourcedPartieRepository.cs  ← Concrete, uses StateRebuilder
 ```
+
+## Payload pattern
+
+Domain events contain Value Objects (typed Ids, domain-specific types). Rather than writing custom JSON converters to serialize them, the architecture maps domain events to **payload records** containing only primitives (`Guid`, `string`, `DateTimeOffset`, etc.) before JSON serialization.
+
+This makes serialization trivial (no custom converters) and decouples the stored format from domain types.
+
+### IStoredEventPayload — marker interface
+
+```csharp
+// Shared.Write.Infrastructure/EventStore/IStoredEventPayload.cs
+public interface IStoredEventPayload;
+```
+
+All payload records implement this marker. Example:
+
+```csharp
+// <BC>.Write.Infrastructure/EventStore/Payloads/PartieCreePayload.cs
+internal sealed record PartieCreePayload(
+    Guid PartieId,
+    string Nom,
+    DateTimeOffset OccurredOn) : IStoredEventPayload;
+```
+
+### IEventPayloadMapper — per-BC mapping
+
+Each bounded context provides a mapper that converts domain events to payloads:
+
+```csharp
+// Shared.Write.Infrastructure/EventStore/IEventPayloadMapper.cs
+public interface IEventPayloadMapper
+{
+    IStoredEventPayload ToPayload(IDomainEvent @event);
+}
+```
+
+```csharp
+// <BC>.Write.Infrastructure/EventStore/<BC>EventPayloadMapper.cs
+internal sealed class TournoiEventPayloadMapper : IEventPayloadMapper
+{
+    public IStoredEventPayload ToPayload(IDomainEvent @event) => @event switch
+    {
+        PartieCree e => new PartieCreePayload(e.PartieId.Valeur, e.Nom.Valeur, e.OccurredOn),
+        JoueurRejoint e => new JoueurRejointPayload(e.PartieId.Valeur, e.JoueurId.Valeur, e.OccurredOn),
+        _ => throw new InvalidOperationException($"Unknown event type: {@event.GetType().Name}")
+    };
+}
+```
+
+The `.Valeur` extraction happens here — all Value Objects and Typed Ids are flattened to their primitive representations.
+
+### IStoredEventReader — read payloads from the store
+
+```csharp
+// Shared.Write.Infrastructure/EventStore/IStoredEventReader.cs
+public interface IStoredEventReader
+{
+    Task<IReadOnlyCollection<IStoredEventPayload>> ReadPayloadsAsync(
+        StreamKey streamKey,
+        int fromVersion = 0,
+        CancellationToken ct = default);
+}
+```
+
+This interface is used by repositories and state rebuilders to read payloads without going through domain event deserialization.
 
 ## SQL Event Store implementation
 
@@ -152,7 +213,8 @@ src/
 internal sealed class SqlEventStore(
     WriteDbContext dbContext,
     EventSerializer serializer,
-    IEnumerable<IEventUpcaster> upcasters) : IEventStore
+    IEventPayloadMapper payloadMapper,
+    IEnumerable<IEventUpcaster> upcasters) : IEventStore, IStoredEventReader
 {
     public async Task AppendToStreamAsync(
         StreamKey streamKey,
@@ -172,14 +234,15 @@ internal sealed class SqlEventStore(
         var version = expectedVersion;
         foreach (var @event in events)
         {
+            var payload = payloadMapper.ToPayload(@event);
             version++;
             dbContext.Events.Add(new StoredEvent
             {
                 EntityName = streamKey.EntityName,
                 EntityId = streamKey.EntityId,
                 StreamVersion = version,
-                EventType = serializer.GetDiscriminator(@event),
-                Payload = serializer.Serialize(@event),
+                EventType = serializer.GetDiscriminator(payload),
+                Payload = serializer.Serialize(payload),
                 OccurredOn = @event.OccurredOn
             });
         }
@@ -187,7 +250,7 @@ internal sealed class SqlEventStore(
         await dbContext.SaveChangesAsync(ct);
     }
 
-    public async Task<IReadOnlyCollection<IDomainEvent>> ReadStreamAsync(
+    public async Task<IReadOnlyCollection<IStoredEventPayload>> ReadPayloadsAsync(
         StreamKey streamKey,
         int fromVersion = 0,
         CancellationToken ct = default)
@@ -200,8 +263,8 @@ internal sealed class SqlEventStore(
         return storedEvents
             .Select(e =>
             {
-                var payload = ApplyUpcasters(e.EventType, e.StreamVersion, e.Payload);
-                return serializer.Deserialize(e.EventType, payload);
+                var json = ApplyUpcasters(e.EventType, e.StreamVersion, e.Payload);
+                return serializer.Deserialize(e.EventType, json);
             })
             .ToList()
             .AsReadOnly();
@@ -266,6 +329,8 @@ internal sealed class SqlEventStore(
 }
 ```
 
+Note: `SqlEventStore` implements both `IEventStore` (domain port, for writes) and `IStoredEventReader` (infrastructure interface, for reads). The `IEventStore.AppendToStreamAsync` still accepts `IDomainEvent` (domain purity) — the mapping to payloads happens internally via `IEventPayloadMapper`.
+
 ## Persistence models (EF Core)
 
 ```csharp
@@ -322,46 +387,41 @@ internal sealed class AggregateSnapshot
 
 ## Event serialization
 
-The serializer maps between `IDomainEvent` instances and their JSON representation. It uses a **discriminator** (the event type name) to know which concrete type to deserialize to.
+The serializer maps between `IStoredEventPayload` instances and their JSON representation. Since payloads contain only primitives, **no custom JSON converters are needed**. It uses a **discriminator** (the payload type name) to know which concrete type to deserialize to.
 
 ```csharp
-// Infrastructure/EventStore/EventSerializer.cs
+// Shared.Write.Infrastructure/Serialization/EventSerializer.cs
 internal sealed class EventSerializer
 {
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false,
-        Converters =
-        {
-            new TypedIdConverterFactory(),
-            new ValueObjectConverterFactory()
-        }
+        WriteIndented = false
     };
 
     // Maps discriminator string → CLR type. Populated at startup via assembly scanning.
-    private readonly Dictionary<string, Type> _eventTypes;
+    private readonly Dictionary<string, Type> _payloadTypes;
 
     public EventSerializer(params Assembly[] assemblies)
     {
-        _eventTypes = assemblies
+        _payloadTypes = assemblies
             .SelectMany(a => a.GetTypes())
-            .Where(t => t.IsAssignableTo(typeof(IDomainEvent)) && !t.IsAbstract)
+            .Where(t => t.IsAssignableTo(typeof(IStoredEventPayload)) && !t.IsAbstract)
             .ToDictionary(t => t.Name, t => t);
     }
 
-    public string GetDiscriminator(IDomainEvent @event) => @event.GetType().Name;
+    public string GetDiscriminator(IStoredEventPayload payload) => payload.GetType().Name;
 
-    public string Serialize(IDomainEvent @event)
-        => JsonSerializer.Serialize(@event, @event.GetType(), Options);
+    public string Serialize(IStoredEventPayload payload)
+        => JsonSerializer.Serialize(payload, payload.GetType(), Options);
 
-    public IDomainEvent Deserialize(string discriminator, string payload)
+    public IStoredEventPayload Deserialize(string discriminator, string json)
     {
-        if (!_eventTypes.TryGetValue(discriminator, out var type))
+        if (!_payloadTypes.TryGetValue(discriminator, out var type))
             throw new InvalidOperationException(
-                $"Unknown event type '{discriminator}'. Register it in the event serializer.");
+                $"Unknown payload type '{discriminator}'. Register it in the event serializer.");
 
-        return (IDomainEvent)JsonSerializer.Deserialize(payload, type, Options)!;
+        return (IStoredEventPayload)JsonSerializer.Deserialize(json, type, Options)!;
     }
 
     public string SerializeSnapshot(object state)
@@ -376,80 +436,11 @@ internal sealed class EventSerializer
 }
 ```
 
-### ITypedId interface and JSON converters for Typed Ids
+⚠️ **CRITICAL: `EventSerializer` must use `type.Name` (not `type.FullName`) as the type map key** — the `SqlEventStore` stores `GetType().Name`.
 
-Domain events contain Value Objects and Typed Ids. The serializer needs custom converters so that e.g. `PartieId` serializes as a plain GUID string rather than `{"Valeur": "..."}`.
+⚠️ **CRITICAL: `EventSerializer` constructor takes `params Assembly[]`** — scans for `IStoredEventPayload` implementations and builds a discriminator → CLR type map. Must include `GetDiscriminator()`, `Serialize()`, `Deserialize(discriminator, json)`, `SerializeSnapshot()`, `DeserializeSnapshot()`.
 
-Rather than using fragile reflection, define a contract in Shared.Write.Domain that all Typed Ids implement:
-
-```csharp
-// Shared.Write.Domain/ITypedId.cs
-public interface ITypedId<out TPrimitive>
-{
-    TPrimitive Valeur { get; }
-}
-```
-
-Each Typed Id implements it:
-
-```csharp
-public readonly record struct PartieId(Guid Valeur) : ITypedId<Guid>
-{
-    public static PartieId Nouveau() => new(Guid.NewGuid());
-    public static PartieId Reconstituer(Guid valeur) => new(valeur);
-}
-```
-
-The generic converter uses the interface — no reflection needed for reading/writing:
-
-```csharp
-// Shared.Write.Infrastructure/Serialization/TypedIdConverter.cs
-internal sealed class TypedIdConverter<TId> : JsonConverter<TId>
-    where TId : struct, ITypedId<Guid>
-{
-    public override TId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        var guid = reader.GetGuid();
-        // Each typed Id is a readonly record struct with a single Guid constructor parameter
-        return (TId)Activator.CreateInstance(typeToConvert, guid)!;
-    }
-
-    public override void Write(Utf8JsonWriter writer, TId value, JsonSerializerOptions options)
-    {
-        writer.WriteStringValue(value.Valeur);
-    }
-}
-```
-
-A factory simplifies registration for all Typed Ids in a given assembly:
-
-```csharp
-// Shared.Write.Infrastructure/Serialization/TypedIdConverterFactory.cs
-internal sealed class TypedIdConverterFactory : JsonConverterFactory
-{
-    public override bool CanConvert(Type typeToConvert)
-        => typeToConvert.IsValueType
-           && typeToConvert.GetInterfaces().Any(i =>
-               i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ITypedId<>));
-
-    public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
-    {
-        var converterType = typeof(TypedIdConverter<>).MakeGenericType(typeToConvert);
-        return (JsonConverter)Activator.CreateInstance(converterType)!;
-    }
-}
-```
-
-Register the factory once in the serializer options — it handles all current and future Typed Ids automatically:
-
-```csharp
-private static readonly JsonSerializerOptions Options = new()
-{
-    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    WriteIndented = false,
-    Converters = { new TypedIdConverterFactory() }
-};
-```
+Snapshot payloads also use only primitives (see aggregate-es.md for the snapshot pattern), so the same converter-free `JsonSerializerOptions` works for both events and snapshots.
 
 ## Repository pattern
 
@@ -463,28 +454,33 @@ See `references/aggregate-es.md` for the full repository implementation with:
 ## DI registration
 
 ```csharp
-// Infrastructure/DependencyInjection.cs
+// Shared.Write.Infrastructure/EventStore/ServiceCollectionExtensions.cs
 public static IServiceCollection AddEventSourcing(
     this IServiceCollection services,
     string connectionString,
-    params Assembly[] domainAssemblies)
+    params Assembly[] payloadAssemblies)
 {
     services.AddDbContext<WriteDbContext>(options =>
         options.UseSqlServer(connectionString)); // or UseNpgsql for PostgreSQL
 
-    services.AddSingleton(new EventSerializer(domainAssemblies));
+    services.AddSingleton(new EventSerializer(payloadAssemblies));
     services.AddScoped<IEventStore, SqlEventStore>();
+    services.AddScoped<IStoredEventReader, SqlEventStore>();
 
     return services;
 }
 
-// Per bounded context
-public static IServiceCollection AddPartieEventSourcing(this IServiceCollection services)
+// Per bounded context — registers mapper, repositories, state rebuilders
+public static IServiceCollection AddTournoiEventSourcing(this IServiceCollection services)
 {
+    services.AddScoped<IEventPayloadMapper, TournoiEventPayloadMapper>();
     services.AddScoped<IPartieRepository, EventSourcedPartieRepository>();
+    services.AddScoped<IStateRebuilder<Partie, PartieId>, PartieStateRebuilder>();
     return services;
 }
 ```
+
+Note: `AddEventSourcing` takes `payloadAssemblies` (assemblies containing `IStoredEventPayload` implementations), not domain assemblies. Pass the BC's Infrastructure assembly.
 
 ## WriteDbContext
 

@@ -80,6 +80,8 @@ ObtenirPartie_doit_retourner_404_quand_la_partie_est_introuvable
 
 The test factory extends `WebApplicationFactory<Program>` and uses **Testcontainers SQL Server** for full database isolation. A single container is shared across the test session via `ICollectionFixture`.
 
+> **⚠️ xUnit 2.9.x** : `IAsyncLifetime.InitializeAsync()` et `DisposeAsync()` retournent **`Task`**, PAS `ValueTask`. `ValueTask` est xUnit v3 uniquement — ce projet utilise xUnit 2.9.x.
+
 ```csharp
 public sealed class ImperiumRexWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
@@ -150,6 +152,8 @@ public class E2ECollection : ICollectionFixture<ImperiumRexWebApplicationFactory
 - `Microsoft.Extensions.TimeProvider.Testing`
 - `Testcontainers.MsSql`
 - `xunit`
+
+> `FakeTimeProvider` est dans le namespace `Microsoft.Extensions.Time.Testing` (différent du nom du package NuGet).
 
 ---
 

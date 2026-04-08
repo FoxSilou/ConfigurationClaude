@@ -67,7 +67,16 @@
       "Bash(pdftotext:*)",
       "Bash(start:*)",
       "Bash(grep -E \"\\(///|/\\\\*|Arrange|Act|Assert\\)\")",
-      "Bash(grep -r \"summary\\\\|///\" /c/Developpement/Perso/ConfigurationClaude/frontend/.claude --include=\"*.md\")"
+      "Bash(grep -r \"summary\\\\|///\" /c/Developpement/Perso/ConfigurationClaude/frontend/.claude --include=\"*.md\")",
+      "Bash(git mv:*)",
+      "Bash(mv AppButton.razor Button.razor)",
+      "Bash(mv AppTextBox.razor TextBox.razor)",
+      "Bash(mv AppDataGrid.razor DataGrid.razor)",
+      "Bash(mv AppDropDown.razor DropDown.razor)",
+      "Bash(mv AppDialogService.cs ImperiumRexDialogService.cs)",
+      "Bash(grep -A 2 \"Microsoft.Extensions.TimeProvider.Testing\\\\|Microsoft.Extensions.Time.Testing\" tests/*/Identity.UnitTests.csproj tests/*/ImperiumRex.E2E.Tests.csproj)",
+      "Bash(grep \"xunit\" tests/*/Identity.UnitTests.csproj tests/*/ImperiumRex.E2E.Tests.csproj)",
+      "Bash(grep -i \"\\\\.cs$\")"
     ]
   }
 }

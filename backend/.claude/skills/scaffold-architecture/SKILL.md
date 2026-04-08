@@ -142,6 +142,7 @@ app.MapPost("/api/identite/inscription", async (InscriptionRequest request, Insc
 - Use `TimeProvider` (built-in .NET 8+) for time abstraction, never a custom `IHorloge` port.
 - Register in DI: `builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);`
 - In tests: use `FakeTimeProvider` from `Microsoft.Extensions.TimeProvider.Testing`.
+  > `FakeTimeProvider` est dans le namespace `Microsoft.Extensions.Time.Testing` (le namespace diffère du nom du package NuGet `Microsoft.Extensions.TimeProvider.Testing`).
 
 ---
 
@@ -168,7 +169,7 @@ All aggregate roots inherit from `AggregateRoot<TId>`. See rule `aggregate.md`.
 The shared ES infrastructure lives in `Shared.Write.Infrastructure` and `Shared.Write.Domain`. See skill `event-sourcing` for full details.
 
 - **Shared.Write.Domain**: `IEventStore`, `IDomainEventHandler<T>`, `IDomainEventBus`, `Snapshot`, `ITypedId<T>`, `ICommand`, `ICommandBus`, `IQuery`, `IQueryBus`
-- **Shared.Write.Infrastructure**: `MediatRCommandBus`, `MediatRDomainEventBus`, `AddWriteMessaging()`, `AddDomainEventHandlers()`, `SqlEventStore` (implements `IEventStore`), `WriteDbContext` (shared across all BCs), `StoredEvent`, `AggregateSnapshot`, `AddEventSourcing()`, `IStateRebuilder<TAggregate, TId>`, `EventSerializer`, `TypedIdConverterFactory`, `ValueObjectConverterFactory`, `ConcurrencyException`
+- **Shared.Write.Infrastructure**: `MediatRCommandBus`, `MediatRDomainEventBus`, `AddWriteMessaging()`, `AddDomainEventHandlers()`, `SqlEventStore` (implements `IEventStore` + `IStoredEventReader`), `WriteDbContext` (shared across all BCs), `StoredEvent`, `AggregateSnapshot`, `AddEventSourcing()`, `IStateRebuilder<TAggregate, TId>`, `EventSerializer`, `IStoredEventPayload`, `IStoredEventReader`, `IEventPayloadMapper`, `ConcurrencyException`
 - **Shared.Read.Infrastructure**: `MediatRQueryBus`, `AddReadMessaging()`, `ReadDbContext` (shared across all BCs, single DB `<SolutionName>_Read`), `AddReadDbContext()`
 - **Per-BC Write Infrastructure**: `<Aggregate>StateRebuilder`, `EventSourced<Aggregate>Repository`
 - **Per-BC Read Infrastructure**: projections (`<Event>Projection` implementing `IDomainEventHandler<TEvent>`), read models, `IEntityTypeConfiguration<T>` (registered in shared `ReadDbContext`)

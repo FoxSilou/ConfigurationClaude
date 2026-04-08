@@ -27,7 +27,7 @@ src/
 │   │                                              AddWriteMessaging(), AddDomainEventHandlers()),
 │   │                                              ES infra (SqlEventStore, WriteDbContext, StoredEvent, AggregateSnapshot,
 │   │                                              IStateRebuilder, EventSerializer, AddEventSourcing(),
-│   │                                              TypedIdConverterFactory, ValueObjectConverterFactory)
+│   │                                              IStoredEventPayload, IStoredEventReader, IEventPayloadMapper)
 │   └── Read/
 │       └── Shared.Read.Infrastructure.csproj   → MediatR query adapters (MediatRQueryBus, AddReadMessaging()),
 │                                                  ReadDbContext (shared, single DB <SolutionName>_Read),

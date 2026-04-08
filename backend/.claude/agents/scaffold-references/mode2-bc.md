@@ -53,6 +53,7 @@ Inventory what exists and what is missing for this bounded context.
 | Concern | What to check | Location |
 |---|---|---|
 | **WriteDbContext (shared)** | Does it exist in `Shared.Write.Infrastructure`? | `Shared/Write/Shared.Write.Infrastructure/EventStore/` |
+| **EventPayloadMapper** | Does the BC have an `IEventPayloadMapper` implementation? | `<BC>/Write/<BC>.Write.Infrastructure/EventStore/<BC>EventPayloadMapper.cs` |
 | **State rebuilders** | Does each event-sourced aggregate have a StateRebuilder? | `<BC>/Write/<BC>.Write.Infrastructure/EventStore/StateRebuilders/` |
 | **Persistence models** | (state-based only) Does each aggregate have a persistence model? | `<BC>/Write/<BC>.Write.Infrastructure/Persistence/Models/` |
 | **Repository implementations** | Does each `I<Name>Repository` have an adapter? | `<BC>/Write/<BC>.Write.Infrastructure/Persistence/` |
@@ -132,7 +133,17 @@ If the bounded context involves user authentication, follow rule `identity-frame
 Follow the `event-sourcing` skill:
 
 - **`WriteDbContext`, `StoredEvent`, `AggregateSnapshot`, `SqlEventStore`** are already in `Shared.Write.Infrastructure` — do NOT recreate per-BC
-- **BC Infrastructure/EventStore/StateRebuilders/**: create `<Aggregate>StateRebuilder` — folds events, calls `Reconstituer`
+- **BC Infrastructure/EventStore/<BC>EventPayloadMapper.cs**: create the per-BC payload mapper implementing `IEventPayloadMapper`. Start with an empty switch expression — cases are added later when aggregates are scaffolded (Mode 3):
+  ```csharp
+  internal sealed class <BC>EventPayloadMapper : IEventPayloadMapper
+  {
+      public IStoredEventPayload ToPayload(IDomainEvent @event) => @event switch
+      {
+          _ => throw new InvalidOperationException($"Unknown event type: {@event.GetType().Name}")
+      };
+  }
+  ```
+- **BC Infrastructure/EventStore/StateRebuilders/**: create `<Aggregate>StateRebuilder` — folds payloads, calls `Reconstituer`
 - **BC Infrastructure/Persistence/**: create `EventSourced<Aggregate>Repository` (NOT `EfCore<Aggregate>Repository`)
 - **Read Infrastructure/Projections/**: create `<Event>Projection` classes implementing `IDomainEventHandler<TEvent>` — one per event type
 - **Read side**: create read models in `<BC>.Read.Infrastructure/Models/` and `IEntityTypeConfiguration<T>` for each read model (registered in the shared `ReadDbContext` from `Shared.Read.Infrastructure`)
