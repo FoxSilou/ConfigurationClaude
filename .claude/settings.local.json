@@ -76,7 +76,9 @@
       "Bash(mv AppDialogService.cs ImperiumRexDialogService.cs)",
       "Bash(grep -A 2 \"Microsoft.Extensions.TimeProvider.Testing\\\\|Microsoft.Extensions.Time.Testing\" tests/*/Identity.UnitTests.csproj tests/*/ImperiumRex.E2E.Tests.csproj)",
       "Bash(grep \"xunit\" tests/*/Identity.UnitTests.csproj tests/*/ImperiumRex.E2E.Tests.csproj)",
-      "Bash(grep -i \"\\\\.cs$\")"
+      "Bash(grep -i \"\\\\.cs$\")",
+      "Bash(taskkill //F //PID 1536096)",
+      "Bash(tasklist)"
     ]
   }
 }

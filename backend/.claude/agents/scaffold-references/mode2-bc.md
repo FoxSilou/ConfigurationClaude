@@ -210,6 +210,22 @@ For each command/query that needs HTTP exposure:
   3. Dispatch via `ICommandBus`
   4. Map the result to an HTTP response
 - **Never put business logic in endpoints**
+- **OpenAPI annotations are MANDATORY** on every endpoint:
+  - `.WithName("<OperationName>")` — operation ID used by NSwag to generate typed method names in the frontend client
+  - `.WithTags("<BoundedContext>")` — groups endpoints in the spec
+  - `.Produces<T>(statusCode)` — documents the success response type
+  - `.ProducesProblem(statusCode)` — documents error responses (Problem Details)
+  
+  Example:
+  ```csharp
+  app.MapPost("/api/<bc>/<aggregates>", async (...) => { ... })
+      .WithName("Creer<Aggregate>")
+      .WithTags("<BoundedContext>")
+      .Produces(StatusCodes.Status201Created)
+      .ProducesProblem(StatusCodes.Status400BadRequest);
+  ```
+  
+  Without these annotations, the frontend NSwag client cannot generate meaningful method names or typed responses.
 
 #### 3. Request/Response Models
 

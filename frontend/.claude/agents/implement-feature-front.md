@@ -91,7 +91,9 @@ Understand the full scope of the frontend feature before writing a single line o
    - The **backend endpoints** the Gateway will call
 3. Verify the backend endpoints exist or are planned:
    - Check for matching POST/GET endpoints in the backend solution
+   - Check that the backend `Api.json` (OpenAPI spec) contains these endpoints with correct `operationId` values
    - If endpoints don't exist yet, flag it: the backend must be implemented first for Phase 3
+   - If `Api.json` is stale (missing new endpoints), note that the backend must be rebuilt before Phase 3
 4. Produce an **ordered test list** from the UI Discovery spec (or derive one if starting from a description).
 5. Write the analysis document.
 
@@ -257,24 +259,27 @@ Ask:
 Implement the HTTP Gateway that calls the backend API.
 
 ### Pre-requisite
-The backend endpoints must exist. If they don't:
+The backend endpoints must exist AND the OpenAPI spec must be up to date. If they don't:
 > *"Les endpoints backend ne sont pas encore implementes. Lancez `/task-implement-feature-back` d'abord, puis revenez ici pour la Phase 3."*
+
+If the endpoints exist but the NSwag client doesn't have the corresponding methods:
+> *"Le client NSwag est obsolete. Rebuilding le backend (`dotnet build` dans `backend/`) pour regenerer `Api.json`, puis rebuild le frontend pour regenerer le client."*
 
 ### Steps
 
-1. Create `Http<Feature>Gateway` in `UI.Infrastructure/Gateways/`
-2. Implement each method from `I<Feature>Gateway`:
-   - Use `HttpClient` injected via constructor
-   - Map responses to DTOs
-   - Handle errors (throw on non-success status)
-3. Register in DI: `builder.Services.AddHttpClient<I<Feature>Gateway, Http<Feature>Gateway>(...)`
-4. Verify by running the full application manually (or note for the user)
+1. **Regenerate the NSwag client** if needed: rebuild the backend to update `Api.json`, then rebuild the frontend Infrastructure project
+2. Create `Http<Feature>Gateway` in `UI.Infrastructure/Gateways/`
+3. Implement each method from `I<Feature>Gateway`:
+   - Inject `IImperiumRexApiClient` (NSwag-generated client) via constructor — **not raw `HttpClient`**
+   - Delegate to the generated client methods (e.g., `apiClient.Creer<Feature>Async(...)`)
+   - The NSwag client handles URL routing, serialization, and error responses
+4. Register in DI: `builder.Services.AddScoped<I<Feature>Gateway, Http<Feature>Gateway>()`
+5. Verify by running the full application manually (or note for the user)
 
 ### Rules
 
-- The Gateway is a pure HTTP adapter -- no business logic
-- Use `System.Text.Json` for serialization
-- Error handling: throw on non-success, let the Presenter catch and set error state
+- The Gateway delegates to the NSwag-generated client -- no manual URL construction, no raw `HttpClient` calls
+- Error handling: the NSwag client throws `ApiException` on non-success status; the Presenter catches and sets error state
 - No retry logic in the Gateway (that's infrastructure concern for later)
 
 ### Done -- Frontend Feature Complete

@@ -12,6 +12,7 @@ ASP.NET Core solution **ImperiumRex** following **Hexagonal Architecture**, **DD
 - **Internal messaging**: MediatR — used as an **infrastructure adapter** behind generic interfaces in Shared.Write.Domain
 - **Persistence**: Event Sourcing by default (custom SQL event store in `Shared.Write.Infrastructure`), state-based (EF Core) as alternative
 - **Time abstraction**: `TimeProvider` (built-in .NET 8+)
+- **API contract**: OpenAPI (generated at build via `Microsoft.Extensions.ApiDescription.Server` → `Api.json` at backend root, consumed by frontend NSwag)
 - **Tests**: xUnit, FluentAssertions, Testcontainers (SQL Server for E2E)
 
 ## Architecture
@@ -88,10 +89,10 @@ dotnet build
 dotnet test
 dotnet test --collect:"XPlat Code Coverage"
 # Write migrations (shared WriteDbContext)
-dotnet ef migrations add <n> --project src/Shared/Write/Shared.Write.Infrastructure --startup-project src/Api/Api --context WriteDbContext --output-dir EventStore/Migrations
-dotnet ef database update --project src/Shared/Write/Shared.Write.Infrastructure --startup-project src/Api/Api --context WriteDbContext
+dotnet ef migrations add <n> --project src/Shared/Write/Shared.Write.Infrastructure --startup-project src/Api --context WriteDbContext --output-dir EventStore/Migrations
+dotnet ef database update --project src/Shared/Write/Shared.Write.Infrastructure --startup-project src/Api --context WriteDbContext
 # Read migrations (shared ReadDbContext)
-dotnet ef migrations add <n> --project src/Shared/Read/Shared.Read.Infrastructure --startup-project src/Api/Api --context ReadDbContext --output-dir Migrations
-dotnet ef database update --project src/Shared/Read/Shared.Read.Infrastructure --startup-project src/Api/Api --context ReadDbContext
+dotnet ef migrations add <n> --project src/Shared/Read/Shared.Read.Infrastructure --startup-project src/Api --context ReadDbContext --output-dir Migrations
+dotnet ef database update --project src/Shared/Read/Shared.Read.Infrastructure --startup-project src/Api --context ReadDbContext
 dotnet format
 ```

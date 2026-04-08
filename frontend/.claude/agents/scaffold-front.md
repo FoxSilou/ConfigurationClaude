@@ -340,7 +340,29 @@ Create the gateway ports, HTTP implementations, and DI registration.
 
 ### Steps
 
-1. For each backend API endpoint that the frontend needs:
+#### 0. NSwag API Client (prerequisite)
+
+If the NSwag client infrastructure does not exist yet:
+- Add `NSwag.MSBuild` package to `UI.Infrastructure.csproj` (PrivateAssets=all)
+- Create `UI.Infrastructure/nswag.json` pointing to `../../../backend/Api.json`
+- Create `UI.Infrastructure/ApiClient/` directory
+- Add MSBuild target to run NSwag after build:
+  ```xml
+  <Target Name="NSwag" AfterTargets="PostBuildEvent" Condition="Exists('..\..\..\backend\Api.json')">
+    <Exec WorkingDirectory="$(ProjectDir)" Command="$(NSwagExe_Net80) run nswag.json /variables:Configuration=$(Configuration)" ConsoleToMSBuild="true" />
+  </Target>
+  ```
+- Register the generated client in DI:
+  ```csharp
+  builder.Services.AddScoped<IImperiumRexApiClient>(sp =>
+      new ImperiumRexApiClient(sp.GetRequiredService<HttpClient>()));
+  ```
+
+The NSwag client generates typed methods (e.g., `InscrireUtilisateurAsync`, `ObtenirUtilisateurAsync`) from the backend OpenAPI spec. Gateway implementations use this client instead of raw `HttpClient` calls.
+
+#### 1. Gateway Ports and Implementations
+
+For each backend API endpoint that the frontend needs:
    - Create a **port** (interface) in `UI.Domain/Ports/`:
      ```csharp
      public interface I[Feature]Gateway
@@ -349,12 +371,16 @@ Create the gateway ports, HTTP implementations, and DI registration.
          Task<[DetailModel]> RecupererDetailAsync(Guid id);
      }
      ```
-   - Create a **HTTP implementation** in `UI.Infrastructure/Gateways/`:
+   - Create a **HTTP implementation** in `UI.Infrastructure/Gateways/` — **using the NSwag-generated client**, not raw `HttpClient`:
      ```csharp
-     public class Http[Feature]Gateway : I[Feature]Gateway { ... }
+     public class Http[Feature]Gateway(IImperiumRexApiClient apiClient) : I[Feature]Gateway
+     {
+         public async Task<[DetailModel]> RecupererDetailAsync(Guid id)
+             => await apiClient.Obtenir[Feature]Async(id);
+     }
      ```
-   - Create the corresponding **DTOs** in `UI.Domain/` or `Models/`
-2. Register all gateways in DI via `AddHttpClient<IXxxGateway, HttpXxxGateway>()`.
+   - Create the corresponding **DTOs** in `UI.Domain/` or `Models/` (or reuse NSwag-generated DTOs from `ApiClient/`)
+2. Register all gateways in DI as `AddScoped<IXxxGateway, HttpXxxGateway>()`.
 3. Configure `HttpClient` base address from configuration.
 4. Create empty **Presenter shells** in `UI.Domain/Presenters/[Feature]/`:
    - Follow the `blazor-hexagonal` skill template
@@ -687,16 +713,14 @@ Create the HTTP gateway implementation.
 
 1. Create `UI.Infrastructure/Gateways/Http[Feature]Gateway.cs`:
    - Implements `I[Feature]Gateway`
-   - Injects `HttpClient` via constructor
-   - Implements each method with `HttpClient.GetFromJsonAsync<T>()` or equivalent
-   - No business logic — pure HTTP call + deserialization
+   - Injects `IImperiumRexApiClient` (NSwag-generated client) via constructor — **not raw `HttpClient`**
+   - Delegates to the generated client methods (e.g., `apiClient.Obtenir[Feature]Async(id)`)
+   - No business logic — pure delegation to the typed API client
+   - **If the NSwag client doesn't have the needed methods yet**: rebuild the backend to regenerate `Api.json`, then rebuild the frontend to regenerate the client
 
 2. Register in DI:
    ```csharp
-   builder.Services.AddHttpClient<I[Feature]Gateway, Http[Feature]Gateway>(client =>
-   {
-       client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"]!);
-   });
+   builder.Services.AddScoped<I[Feature]Gateway, Http[Feature]Gateway>();
    ```
 
 ### Verification

@@ -9,19 +9,29 @@ This is the frontend solution (Blazor / MAUI). It communicates with the backend 
 - **Framework**: Blazor (WebAssembly or Server) / .NET MAUI (depending on context)
 - **Tests**: bUnit (component testing), Playwright for .NET (E2E UI testing)
 - **Assertions**: FluentAssertions
+- **API client**: NSwag (typed HTTP client generated from backend `Api.json` OpenAPI spec — URLs and DTOs are synchronized at build time)
 - **Conventions**: Same C# conventions as backend (see workspace CLAUDE.md)
 
 ---
 
 ## Architecture
 
-The frontend follows a clean separation between:
+The frontend follows a hexagonal architecture:
 
-- **Pages** — top-level routable components
-- **Components** — reusable UI building blocks (wrapped via UI Kit, see skill `blazor-ui-kit`)
-- **Presenters** — pure C# classes handling UI logic (see skill `blazor-hexagonal`)
-- **Services** — injected services for API communication and state management
-- **Models** — DTOs matching the backend API contracts
+```
+src/
+├── ImperiumRex.UI.Blazor/          ← Composition root + Razor pages/components (UI Kit wrappers)
+├── ImperiumRex.UI.Domain/          ← Presenters (pure C#) + Ports (gateway interfaces)
+│   ├── Presenters/
+│   └── Ports/
+└── ImperiumRex.UI.Infrastructure/  ← Gateway implementations (HTTP adapters)
+    └── Gateways/
+```
+
+- **Pages/Components** — thin Razor shells binding to Presenters (wrapped via UI Kit, see skill `blazor-ui-kit`)
+- **Presenters** — pure C# classes handling UI logic, no Blazor dependency (see skill `blazor-hexagonal`)
+- **Ports** — gateway interfaces defined in Domain (`IXxxGateway`)
+- **Gateways** — HTTP implementations of ports, in Infrastructure
 
 ---
 

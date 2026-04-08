@@ -53,6 +53,7 @@ Inventory what exists and what is missing in the shared foundation.
 | **Program.cs** | Composition root with minimal setup | `src/Api/Program.cs` |
 | **Error middleware** | Global exception handler (Problem Details RFC 7807) | `src/Api/` |
 | **Health endpoint** | `/health` endpoint | `src/Api/Program.cs` |
+| **OpenAPI** | `AddOpenApi()` + `MapOpenApi()` + `Microsoft.Extensions.ApiDescription.Server` in csproj | `src/Api/` |
 | **E2E test project** | Test project with WebApplicationFactory | `tests/` |
 | **E2E smoke test** | Basic health check test | `tests/` |
 
@@ -126,6 +127,8 @@ Save to: `docs/scaffold-general-<date>.md`
 | Error middleware (Problem Details) | ✅ / ❌ | |
 | Health endpoint | ✅ / ❌ | |
 | TimeProvider registration | ✅ / ❌ | |
+| OpenAPI (AddOpenApi + MapOpenApi) | ✅ / ❌ | |
+| OpenAPI spec generation (ApiDescription.Server) | ✅ / ❌ | |
 
 ## E2E Test Harness Status
 
@@ -289,8 +292,18 @@ Create the API project with composition root, error middleware, and health endpo
 1. Create `src/Api/Api.csproj` (ASP.NET Core Web API)
    - Reference Shared.Write.Domain, Shared.Write.Infrastructure, Shared.Read.Infrastructure
    - NuGet: `Microsoft.EntityFrameworkCore.Design` (PrivateAssets=all), `Microsoft.EntityFrameworkCore.SqlServer`
+   - NuGet: `Microsoft.AspNetCore.OpenApi`
+   - NuGet: `Microsoft.Extensions.ApiDescription.Server` (PrivateAssets=all) — generates `Api.json` OpenAPI spec at build time
+   - Add MSBuild properties for OpenAPI spec generation:
+     ```xml
+     <OpenApiDocumentsDirectory>$(MSBuildThisFileDirectory)..\..\</OpenApiDocumentsDirectory>
+     <OpenApiGenerateDocuments>true</OpenApiGenerateDocuments>
+     ```
+     This emits `Api.json` at the backend root directory on each build. The frontend NSwag client reads this file.
 2. Create `src/Api/Program.cs`:
    - Minimal composition root, `TimeProvider.System` singleton, health endpoint (`/health`)
+   - `builder.Services.AddOpenApi()` — registers OpenAPI document generation services
+   - `app.MapOpenApi()` — exposes `/openapi/v1.json` at runtime
    - `public partial class Program;` at end for E2E test access
    - Register `AddEventSourcing(connectionString, domainAssemblies)` for the SQL event store
    - Register `AddReadDbContext(connectionString, readInfraAssemblies)` for the shared ReadDbContext
@@ -405,6 +418,7 @@ API shell:
 - Program.cs with TimeProvider, AddEventSourcing(), AddReadDbContext(), health endpoint, CORS, error middleware
 - Connection strings in appsettings.Development.json (Write + Read)
 - Problem Details (RFC 7807) for domain exceptions + ConcurrencyException
+- OpenAPI: AddOpenApi() + MapOpenApi() + Api.json generated at backend root via ApiDescription.Server
 
 E2E test harness:
 - Project: tests/<SolutionName>.E2E.Tests/

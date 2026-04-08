@@ -272,10 +272,25 @@ Wire the new aggregate into the DI container and create API endpoints.
 2. **Modify Read `ServiceCollectionExtensions.cs`** (`<BC>.Read.Infrastructure/ServiceCollectionExtensions.cs`):
    - Add `services.AddScoped<I<Aggregate>ReadRepository, EfCore<Aggregate>ReadRepository>()`
 
-3. **Create or modify API endpoints**:
+3. **Create or modify API endpoints** (with mandatory OpenAPI annotations):
    - **POST** `/api/<bc>/<aggregates>` — dispatches `Creer<Aggregate>` via `ICommandBus`, returns `201 Created`
+     ```csharp
+     app.MapPost("/api/<bc>/<aggregates>", async (...) => { ... })
+         .WithName("Creer<Aggregate>")
+         .WithTags("<BoundedContext>")
+         .Produces(StatusCodes.Status201Created)
+         .ProducesProblem(StatusCodes.Status400BadRequest);
+     ```
    - **GET** `/api/<bc>/<aggregates>/{id:guid}` — dispatches `Obtenir<Aggregate>` via `IQueryBus`, returns `200 OK` or `404 Not Found`
+     ```csharp
+     app.MapGet("/api/<bc>/<aggregates>/{id:guid}", async (...) => { ... })
+         .WithName("Obtenir<Aggregate>")
+         .WithTags("<BoundedContext>")
+         .Produces<<Aggregate>Dto>()
+         .ProducesProblem(StatusCodes.Status404NotFound);
+     ```
    - URL path uses **lowercase French plural** (e.g., `/api/tournois/parties`)
+   - **`.WithName()` is critical** — it becomes the generated method name in the frontend NSwag client
 
 ### Verification
 
@@ -371,3 +386,5 @@ When scaffolding a **second or subsequent aggregate** in the same BC, files modi
 | Read repository impl | `EfCore<Aggregate>ReadRepository` | `EfCorePartieReadRepository` |
 | API endpoint (create) | `POST /api/<bc>/<aggregates>` | `POST /api/tournois/parties` |
 | API endpoint (get) | `GET /api/<bc>/<aggregates>/{id:guid}` | `GET /api/tournois/parties/{id:guid}` |
+| OpenAPI operation (create) | `.WithName("Creer<Aggregate>")` | `.WithName("CreerPartie")` |
+| OpenAPI operation (get) | `.WithName("Obtenir<Aggregate>")` | `.WithName("ObtenirPartie")` |

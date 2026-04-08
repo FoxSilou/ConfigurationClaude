@@ -265,8 +265,8 @@ If the Read side was flagged as missing in Phase 0 and confirmed by the user, cr
    a. Write the E2E test following the POST → GET pattern (see `e2e-testing` skill)
    b. Run it — it must **fail first** (endpoints may not exist yet)
    c. Implement the minimum to make it pass:
-      - **POST endpoint** (command dispatch via `ICommandBus`)
-      - **GET endpoint** (query dispatch via `IQueryBus`)
+      - **POST endpoint** (command dispatch via `ICommandBus`) — with mandatory OpenAPI annotations: `.WithName()`, `.WithTags()`, `.Produces<>()`, `.ProducesProblem()`
+      - **GET endpoint** (query dispatch via `IQueryBus`) — with mandatory OpenAPI annotations
       - **Query + handler** (in Read Application, if not existing)
       - **Read model DTO** (if not existing)
       - **DI wiring** (`AddWriteMessaging`, `AddReadMessaging`, port registrations)
@@ -282,6 +282,7 @@ If the Read side was flagged as missing in Phase 0 and confirmed by the user, cr
 - Never modify unit tests during this phase.
 - The API layer orchestrates only — no business logic in endpoints.
 - **POST then GET** — never assert on database state directly. Always verify through the HTTP API.
+- **OpenAPI annotations are mandatory** on every new endpoint: `.WithName()`, `.WithTags()`, `.Produces<>()`, `.ProducesProblem()`. Without `.WithName()`, the frontend NSwag client cannot generate meaningful method names.
 
 ### Done — Feature Complete
 
@@ -291,9 +292,10 @@ Report:
 - All tests passing (unit + E2E) ✅
 - **Write side**: Commands, domain concepts, ports created
 - **Read side**: Queries, DTOs, GET endpoints created (if driven by E2E)
-- **API endpoints**: POST + GET with their paths
+- **API endpoints**: POST + GET with their paths (all with OpenAPI annotations)
 - **Infrastructure wired**: adapters, DI, projections
 - List of all files created or modified
+- **Reminder**: rebuild the backend (`dotnet build`) to regenerate `Api.json` so the frontend NSwag client picks up the new endpoints
 
 
 ---
