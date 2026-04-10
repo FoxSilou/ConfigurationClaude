@@ -1,12 +1,9 @@
 ---
 name: blazor-hexagonal
 description: >
-  Architecture hexagonale frontend pour Blazor : Presenters C# purs testables en xUnit,
-  séparation stricte entre intelligence UI et rendu.
-  Utiliser ce skill chaque fois que l'utilisateur demande de créer un nouveau composant Blazor
-  avec de la logique UI, un nouvel écran, un Presenter, un Fake Gateway, ou des tests unitaires
-  de comportement UI. Également quand l'utilisateur mentionne TDD frontend Blazor, machine à états UI,
-  logique de visibilité, ou veut refactorer un composant .razor existant pour en extraire la logique.
+  Utiliser quand l'utilisateur crée un composant Blazor avec logique UI, un écran, un Presenter,
+  un Fake Gateway, ou des tests unitaires UI. Aussi quand il mentionne TDD frontend Blazor,
+  machine à états UI, logique de visibilité, ou veut extraire la logique d'un composant .razor.
 user-invocable: false
 ---
 
@@ -112,9 +109,12 @@ public class [Feature]Presenter
     public bool ContenuVisible => Etat == EtatChargement.Charge;
 
     // ── Notification vers Blazor ──
+    // OnChanged ne doit être invoqué que dans les méthodes async
+    // pour signaler un état intermédiaire pendant un await.
+    // Les setters synchrones appelés via event handlers Blazor
+    // n'en ont PAS besoin — Blazor re-rend automatiquement après.
 
     public event Action? OnChanged;
-    private void Notifier() => OnChanged?.Invoke();
 
     // ── Actions / Transitions ──
 
@@ -122,7 +122,7 @@ public class [Feature]Presenter
     {
         Etat = EtatChargement.EnCours;
         MessageErreur = null;
-        Notifier();
+        OnChanged?.Invoke(); // état intermédiaire pendant l'await
 
         try
         {
@@ -135,7 +135,7 @@ public class [Feature]Presenter
             MessageErreur = $"Erreur : {ex.Message}";
         }
 
-        Notifier();
+        OnChanged?.Invoke(); // état final après l'await
     }
 }
 ```
@@ -349,6 +349,172 @@ Le Presenter gère la logique UI (visibilité, états d'écran, navigation).
 La logique métier (calcul de prix, validation de règles métier) reste côté backend.
 Si une règle métier est nécessaire côté UI (ex: validation temps réel), elle vient du backend
 via le Gateway sous forme de règle pré-calculée, pas implémentée dans le Presenter.
+
+---
+
+## Field Presenters — Champs de formulaire typés
+
+Quand un champ de formulaire porte de la validation (email, mot de passe, pseudonyme, etc.),
+il est modélisé comme un **Field Presenter** : un `record` immutable avec un type `Valide` imbriqué
+qui garantit par construction que la valeur est correcte.
+
+### Quand utiliser
+
+- Le champ a des règles de validation (format, longueur, non-vide)
+- La valeur validée est consommée par un Gateway ou un autre Presenter
+- On veut la type safety : impossible de passer une valeur non validée à un Gateway
+
+### Quand NE PAS utiliser
+
+- Le champ est un simple texte libre sans validation (utiliser `TextBox` directement)
+- La validation est purement côté backend (pas de feedback instantané)
+
+### Template Field Presenter
+
+```csharp
+using MonApp.UI.Domain;
+
+namespace MonApp.UI.Domain.Presenters;
+
+public record [Champ]Presenter
+{
+    public string? Texte { get; private init; }
+    public string? Placeholder { get; }
+    public bool Desactive { get; }
+
+    public string? MessageErreur { get; private init; }
+    public bool EstEnErreur => MessageErreur is not null;
+
+    public Valide? Valeur { get; init; }
+
+    private [Champ]Presenter() {}
+    public static [Champ]Presenter Vide() => new();
+    public static [Champ]Presenter AvecValeur(string valeur)
+    {
+        return new [Champ]Presenter { Texte = valeur }.Valider();
+    }
+
+    private [Champ]Presenter Valider()
+    {
+        return Valide.Creer(Texte).Match(
+            succes: v => this with { Valeur = v, MessageErreur = null },
+            echec: e => this with { Valeur = null, MessageErreur = e });
+    }
+
+    public readonly record struct Valide
+    {
+        public string Valeur { get; }
+
+        private Valide(string valeur) => Valeur = valeur;
+
+        internal static Result<Valide> Creer(string? texte)
+        {
+            if (string.IsNullOrWhiteSpace(texte))
+                return Result<Valide>.Echec("Le [champ] ne peut pas être vide.");
+
+            // ... règles de validation spécifiques ...
+
+            return Result<Valide>.Succes(new Valide(texte.Trim()));
+        }
+    }
+}
+```
+
+Points clés :
+- **Constructeur privé** sur le Presenter et sur `Valide` — seules les factory methods contrôlent la création
+- **`Result<T>`** au lieu d'exceptions — pas de coût de stack trace, pas de `catch` trop large
+- **`Valide` porte ses propres invariants** — posséder un `Valide` = preuve de validité
+- **Immutabilité** — chaque changement produit une nouvelle instance via `with`
+
+### Template composant FieldBox
+
+Le composant wrapper associé reçoit le Field Presenter en paramètre et affiche l'erreur :
+
+```razor
+@using MonApp.UI.Domain.Presenters
+
+<div>
+    <RadzenTextBox Value="@Presenter.Texte"
+                   Placeholder="@Presenter.Placeholder"
+                   Disabled="@Presenter.Desactive"
+                   Change="@OnChange"
+                   class="@CssClass"
+                   @attributes="AttributsSupplementaires"/>
+    @if (Presenter.EstEnErreur)
+    {
+        <div class="font-color-info">@Presenter.MessageErreur</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public [Champ]Presenter Presenter { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback<string> OnValeurChange { get; set; }
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AttributsSupplementaires { get; set; }
+
+    private Task OnChange(string val) => OnValeurChange.InvokeAsync(val);
+}
+```
+
+### Composition dans un Presenter parent
+
+Le Presenter parent compose les Field Presenters et expose des setters qui délèguent :
+
+```csharp
+public EmailPresenter Email { get; private set; } = EmailPresenter.Vide();
+public MotDePassePresenter MotDePasse { get; private set; } = MotDePassePresenter.Vide();
+
+public void DefinirEmail(string email)
+{
+    Email = EmailPresenter.AvecValeur(email);
+    // Pas de OnChanged — Blazor re-rend après le event handler
+}
+
+public bool BoutonActif =>
+    Email.Valeur is not null
+    && MotDePasse.Valeur is not null;
+```
+
+Le Gateway reçoit les types `Valide` — impossible de passer une valeur non validée :
+
+```csharp
+public interface IInscriptionGateway
+{
+    Task InscrireAsync(
+        EmailPresenter.Valide email,
+        MotDePassePresenter.Valide motDePasse);
+}
+```
+
+### Type Result<T>
+
+Le type `Result<T>` est défini dans `UI.Domain/Result.cs` :
+
+```csharp
+public readonly struct Result<T>
+{
+    private readonly T? _valeur;
+    private readonly string? _erreur;
+
+    private Result(T valeur) { _valeur = valeur; EstValide = true; }
+    private Result(string erreur) { _erreur = erreur; EstValide = false; }
+
+    public bool EstValide { get; }
+
+    public static Result<T> Succes(T valeur) => new(valeur);
+    public static Result<T> Echec(string erreur) => new(erreur);
+
+    public TResult Match<TResult>(Func<T, TResult> succes, Func<string, TResult> echec)
+        => EstValide ? succes(_valeur!) : echec(_erreur!);
+}
+```
 
 ---
 

@@ -2,13 +2,9 @@
 ---
 name: excalidraw-event-storming
 description: >
-  Generates Excalidraw Event Storming diagrams for all workshop steps:
-  - view: chaotic -- scattered event post-its (Big Picture exploration)
-  - view: timeline -- events on a horizontal timeline with pivotal events and phases
-  - view: process -- Process Modeling chains (Event -> Policy -> Command -> System -> Event)
-  - view: aggregate -- catalog of all aggregates with their commands/events, no arrows
-  - view: flow -- use-case flows derived from policy chains, left-to-right with curved arrows
-  Produces one .excalidraw file per intermediate step and two files for the final Software Design step.
+  Use when generating Excalidraw diagrams for Event Storming workshops.
+  Supports all views: chaotic, timeline, process, aggregate, and flow.
+  Loaded by the event-storming agent as a rendering skill.
 user-invocable: false
 ---
 

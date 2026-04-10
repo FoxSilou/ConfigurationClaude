@@ -1,15 +1,10 @@
 ---
 name: event-sourcing
 description: >
-  Event Sourcing pattern for .NET/C# projects following Hexagonal Architecture, DDD, and strict CQRS.
-  Covers: domain-pure event-sourced aggregates (no ES awareness in domain layer), custom SQL event store
-  (SQL Server by default, PostgreSQL variant documented), snapshots, and read-side projections.
-  Integrates with existing Shared.Write.Domain abstractions (AggregateRoot, IDomainEvent, ICommand/IQuery buses, ITypedId).
-
-  Use this skill whenever the user mentions event sourcing, event store, event-sourced aggregates, projections
-  from events, replaying events, aggregate reconstitution from events, snapshots, or asks to persist an aggregate
-  as a stream of events instead of state. Also trigger when the user wants to convert an existing state-based
-  aggregate to event sourcing, or when scaffolding a new bounded context that should use event sourcing.
+  Use when the user mentions event sourcing, event store, event-sourced aggregates, projections,
+  replaying events, snapshots, aggregate reconstitution from events, or persisting an aggregate
+  as a stream of events. Also trigger when converting a state-based aggregate to event sourcing,
+  or scaffolding a bounded context that should use event sourcing.
 ---
 
 # Event Sourcing Skill

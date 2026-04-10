@@ -1,14 +1,9 @@
 ---
 name: blazor-ui-kit
 description: >
-  Encapsulation de composants Radzen Blazor dans des wrappers maison (DataGrid, Dialog, etc.)
-  et câblage avec l'architecture hexagonale frontend (Presenter ↔ Wrapper).
-  Utiliser ce skill chaque fois que l'utilisateur demande de créer un composant UI,
-  un wrapper autour d'un composant Radzen, une grille de données, un dialogue, un formulaire,
-  ou veut câbler un composant Radzen avec un Presenter. Également quand l'utilisateur mentionne
-  Radzen, DataGrid, Dialog, composant maison, kit UI, ou veut remplacer un usage direct
-  de Radzen par un wrapper. Aussi pertinent quand l'utilisateur crée une nouvelle page Blazor
-  qui a besoin de composants UI.
+  Utiliser quand l'utilisateur crée un composant UI, un wrapper Radzen, une grille, un dialogue,
+  un formulaire, ou câble un composant avec un Presenter. Aussi quand il mentionne Radzen,
+  DataGrid, Dialog, kit UI, ou veut remplacer un usage direct de Radzen par un wrapper maison.
 user-invocable: false
 ---
 
@@ -293,6 +288,55 @@ builder.Services.AddScoped<[Projet]DialogService>();    // Wrapper maison
     public Dictionary<string, object>? AttributsSupplementaires { get; set; }
 }
 ```
+
+---
+
+### FieldBox — Champ piloté par un Field Presenter
+
+Quand un champ de formulaire est associé à un Field Presenter (voir skill `blazor-hexagonal`),
+le wrapper reçoit le Presenter complet en paramètre au lieu de propriétés individuelles.
+Il affiche automatiquement le message d'erreur.
+
+```razor
+@using MonApp.UI.Domain.Presenters
+
+<div>
+    <RadzenTextBox Value="@Presenter.Texte"
+                   Placeholder="@Presenter.Placeholder"
+                   Disabled="@Presenter.Desactive"
+                   Change="@OnChange"
+                   class="@CssClass"
+                   @attributes="AttributsSupplementaires"/>
+    @if (Presenter.EstEnErreur)
+    {
+        <div class="font-color-info">@Presenter.MessageErreur</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public [Champ]Presenter Presenter { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback<string> OnValeurChange { get; set; }
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AttributsSupplementaires { get; set; }
+
+    private Task OnChange(string val) => OnValeurChange.InvokeAsync(val);
+}
+```
+
+Conventions :
+- **Nom** : le concept du champ sans préfixe — `EmailBox`, `PasswordBox`, `PseudonymeBox`
+- Le composant Radzen interne varie selon le type : `RadzenTextBox`, `RadzenPassword`, etc.
+- Le wrapper vit dans `Components/Kit/` avec les autres wrappers
+- La page câble `Presenter="@Presenter.Email"` et `OnValeurChange="@Presenter.DefinirEmail"`
+
+Exemples existants : `EmailBox.razor`, `PasswordBox.razor`, `PseudonymeBox.razor`
 
 ---
 

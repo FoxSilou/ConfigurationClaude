@@ -1,12 +1,9 @@
 ---
 name: scaffold-architecture
 description: >
-  Frontend infrastructure architecture rules for scaffolding.
-  Covers: hexagonal frontend (Presenter/Coquille de rendu), project dependency graph
-  (Blazor -> Domain <- Infrastructure), UI Kit encapsulation (Kit wrappers, @using Radzen
-  confine dans Kit/), Presenter lifecycle (Scoped DI, OnChanged, IDisposable),
-  Gateway ports with DTOs, testing strategy (bUnit Presenters + Playwright bugs).
-  Use when scaffolding frontend infrastructure or wiring new feature areas.
+  Use when scaffolding frontend infrastructure, wiring new feature areas,
+  or setting up hexagonal frontend structure (Presenters, Gateways, UI Kit wrappers,
+  project dependency graph, testing harness).
 user-invocable: false
 ---
 
@@ -49,6 +46,8 @@ La fleche de dependance va toujours vers le Domain : **Blazor -> Domain <- Infra
 - **Toujours `InvokeAsync(StateHasChanged)`** — jamais `StateHasChanged()` directement.
 - **Toujours `IDisposable` + desabonnement `OnChanged`** dans le composant.
 - **Le Presenter est Scoped dans le DI** — ni Singleton (partage inter-utilisateurs) ni Transient (perte d'etat).
+- **`OnChanged` uniquement dans les methodes async** — pour signaler un etat intermediaire pendant un `await`. Les setters synchrones appeles via event handlers Blazor n'en ont pas besoin (Blazor re-rend automatiquement apres).
+- **Field Presenters pour les champs avec validation** — record immutable + type `Valide` imbrique + `Result<T>`. Voir skill `blazor-hexagonal` pour les templates.
 
 ---
 

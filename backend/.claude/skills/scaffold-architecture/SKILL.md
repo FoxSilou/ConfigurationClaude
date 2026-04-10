@@ -1,13 +1,9 @@
 ---
 name: scaffold-architecture
 description: >
-  Backend infrastructure architecture rules for scaffolding.
-  Covers: CQRS read/write stack separation, MediatR as infrastructure adapter,
-  dispatch architecture (ICommandBus -> MediatRCommandBus -> Handler),
-  automatic handler registration via AddMessaging(), API endpoint conventions,
-  DateTimeOffset + TimeProvider, ports with Value Objects, Reconstituer() pattern,
-  AggregateRoot<TId> base class, Event Sourcing infrastructure (IStateRebuilder, EventSerializer).
-  Use when scaffolding backend infrastructure or wiring vertical slices.
+  Use when scaffolding backend infrastructure, wiring vertical slices,
+  or setting up CQRS read/write stacks, MediatR adapters, API endpoints,
+  or Event Sourcing infrastructure (IStateRebuilder, EventSerializer).
 user-invocable: false
 ---
 

@@ -201,7 +201,8 @@ No user gates during TDD. Run the full cycle (RED -> GREEN -> REFACTOR) for ever
 - **Test the Presenter, not the component.** Tests instantiate the Presenter directly with a Fake Gateway.
 - **French naming.** Test methods: `Action_doit_resultat_quand_contexte`. Properties and methods in French.
 - **EtatChargement enum.** Reuse `Inactif`, `EnCours`, `Charge`, `EnErreur` for loading states.
-- **OnChanged event.** The Presenter notifies UI changes via `event Action? OnChanged`.
+- **OnChanged event.** The Presenter notifies UI changes via `event Action? OnChanged`. Only invoke `OnChanged` in async methods for intermediate states during an `await`. Synchronous setters called via Blazor event handlers do NOT need `OnChanged` — Blazor re-renders automatically after.
+- **Field Presenters.** When a form field has validation (email, password, etc.), create a dedicated Field Presenter (immutable record + nested `Valide` type + `Result<T>`). The Gateway receives `Valide` types — impossible to pass unvalidated values. See skill `blazor-hexagonal` for templates.
 - **AAA comments mandatory.** Every test method MUST contain `// Arrange`, `// Act`, `// Assert` comments. No exceptions.
 
 ### Gate -- End of PHASE 1

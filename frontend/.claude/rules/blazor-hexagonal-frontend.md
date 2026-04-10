@@ -16,6 +16,14 @@ Extraire un Presenter dès qu'un composant contient :
 
 Ne PAS extraire pour un simple toggle isolé sans combinatoire.
 
+## Field Presenters
+
+Les champs de formulaire avec validation (email, mot de passe, pseudonyme, etc.) sont modélisés comme des **Field Presenters** : un `record` immutable avec un type `Valide` imbriqué qui garantit la validité par construction. La validation utilise `Result<T>` (pas d'exceptions). Voir skill `blazor-hexagonal` pour les templates complets.
+
+## OnChanged — règle d'usage
+
+`OnChanged` ne doit être invoqué que dans les méthodes **async** pour signaler un état intermédiaire pendant un `await` (ex : afficher un spinner). Les setters synchrones appelés via event handlers Blazor (`Change`, `@onclick`, etc.) n'en ont **pas besoin** — Blazor re-rend automatiquement après le event handler.
+
 ## Structure attendue
 
 - `MonApp.UI.Domain/Presenters/` — Presenters C# purs, testables en xUnit
