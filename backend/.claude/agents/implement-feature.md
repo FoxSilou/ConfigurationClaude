@@ -89,6 +89,7 @@ Understand the full scope of the feature before writing a single line of code or
    - The **ports** required (repositories, external services)
    - The **API endpoints** to expose (if applicable)
    - The **constraints and invariants** to enforce
+   - If the feature involves **login, password verification, role assignment, JWT generation, or protected endpoints**, load rule `identity-framework.md` for the hybrid Identity pattern. Also verify that **rate limiting** (`RequireRateLimiting("auth")`) and **account lockout** (`ILoginAttemptTracker`) are in place — if not, flag it in the analysis document
 3. **Identify the E2E verification strategy** for each critical path:
    - Each E2E test follows the pattern: **POST (command) → GET (query) to verify the result**.
    - Determine which **Query + read model + GET endpoint** is needed to verify the outcome of each Command.

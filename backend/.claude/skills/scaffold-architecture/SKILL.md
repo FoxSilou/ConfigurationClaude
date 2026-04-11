@@ -3,7 +3,8 @@ name: scaffold-architecture
 description: >
   Use when scaffolding backend infrastructure, wiring vertical slices,
   or setting up CQRS read/write stacks, MediatR adapters, API endpoints,
-  or Event Sourcing infrastructure (IStateRebuilder, EventSerializer).
+  Event Sourcing infrastructure (IStateRebuilder, EventSerializer),
+  or authentication/Identity (JWT, roles, hybrid Identity pattern).
 user-invocable: false
 ---
 
@@ -169,3 +170,22 @@ The shared ES infrastructure lives in `Shared.Write.Infrastructure` and `Shared.
 - **Shared.Read.Infrastructure**: `MediatRQueryBus`, `AddReadMessaging()`, `ReadDbContext` (shared across all BCs, single DB `<SolutionName>_Read`), `AddReadDbContext()`
 - **Per-BC Write Infrastructure**: `<Aggregate>StateRebuilder`, `EventSourced<Aggregate>Repository`
 - **Per-BC Read Infrastructure**: projections (`<Event>Projection` implementing `IDomainEventHandler<TEvent>`), read models, `IEntityTypeConfiguration<T>` (registered in shared `ReadDbContext`)
+
+---
+
+## Authentication & Identity (Hybrid Pattern)
+
+When a BC involves user authentication, follow the hybrid pattern described in rule `identity-framework.md`:
+
+- **Domain is source of truth** — `Utilisateur` aggregate (event-sourced) owns roles, password hash, status
+- **Identity is infrastructure** — `ApplicationUser`, `AppIdentityDbContext`, `AspNet*` tables live in the Read DB
+- **Projections sync domain → Identity** — `IDomainEventHandler<T>` implementations write to Identity via `UserManager`
+- **Ports**: `IPasswordHasher` (hash/verify), `ITokenGenerator` (JWT generation), `IUtilisateurAuthReader` (read auth data from Identity)
+- **Login**: `SeConnecter` command reads from Identity (via ports), verifies password, generates JWT
+- **JWT**: configured in `Api/Program.cs` with `AddAuthentication().AddJwtBearer()`, config in `appsettings.json`
+- **`UserManager` is read-only** in infrastructure — domain events are the only write path
+- **Sécurité basique** (see rule `identity-framework.md` § Sécurité basique):
+  - Password policy: invariants in `MotDePasse` VO + synchronized Identity `Password` options
+  - Lockout: activate Identity `Lockout` options + create `ILoginAttemptTracker` port + `IdentityLoginAttemptTracker` adapter
+  - Rate limiting: `AddRateLimiter()` with `"auth"` policy on login/registration endpoints
+  - Generic error messages on login failures (never reveal which field is wrong)

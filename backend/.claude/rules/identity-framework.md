@@ -1,76 +1,179 @@
 ---
-description: "ASP.NET Core Identity as infrastructure adapter — optional recipe for user management bounded context"
+description: "ASP.NET Core Identity as infrastructure adapter — hybrid pattern: domain is source of truth, Identity synchronized via projections"
 alwaysApply: false
-globs: ["**/Identity/**/*.cs", "**/Infrastructure/**/*User*.cs", "**/Infrastructure/**/*Password*.cs"]
+globs: ["**/Identity/**/*.cs", "**/Infrastructure/**/*User*.cs", "**/Infrastructure/**/*Password*.cs", "**/Infrastructure/**/*Token*.cs", "**/Infrastructure/**/*Auth*.cs"]
 ---
 
-# Rule: ASP.NET Core Identity as Infrastructure Adapter
+# Rule: ASP.NET Core Identity — Hybrid Pattern
 
 > **This rule is an optional recipe.** It applies when the project includes a user management / authentication bounded context. If your project does not need user management, this rule can be ignored.
 
 ## Core Principle
 
-ASP.NET Core Identity is an **infrastructure detail**. It lives exclusively in the `Infrastructure` and `Api` layers. The Domain and Application layers never reference Identity types.
-
-The domain `Utilisateur` aggregate remains the **single source of truth** for business logic (inscription, confirmation, statut). Identity handles the technical concerns: password hashing, claims, roles, lockout, 2FA.
+The domain `Utilisateur` aggregate (event-sourced) is the **single source of truth**. ASP.NET Core Identity is an **infrastructure detail** synchronized via domain event projections. `UserManager<ApplicationUser>` is used **read-only** in infrastructure — never for writes. All mutations go through the domain.
 
 ## Architecture
 
 ```
-Domain                          Infrastructure
-┌─────────────────────┐         ┌──────────────────────────┐
-│ Utilisateur          │         │ ApplicationUser          │
-│  (aggregate root)    │  ←───→  │  : IdentityUser<Guid>    │
-│  - business logic    │  map    │  - persistence           │
-│  - domain events     │         │  - password hash         │
-│  - MotDePasseHash    │         │  - claims / roles        │
-└─────────────────────┘         └──────────────────────────┘
+Domain (source of truth)              Infrastructure (projection target)
+┌──────────────────────────┐          ┌──────────────────────────────┐
+│ Utilisateur              │  events  │ ApplicationUser              │
+│  (aggregate, ES)         │ ──────→  │  : IdentityUser<Guid>        │
+│  - RoleUtilisateur       │ project  │  - Pseudonyme, Statut        │
+│  - MotDePasseHash        │          │  - PasswordHash (Identity)   │
+│  - domain events         │          │  - AspNetUserRoles           │
+└──────────────────────────┘          └──────────────────────────────┘
+         ↑ write                             ↑ read-only
+    Commands / Handlers               UserManager (login, role query)
 ```
+
+## Key Design Decisions
+
+- **`AppIdentityDbContext`** shares the Read database — Identity tables (`AspNet*`) cohabit with read models
+- **`ApplicationUser`** is infrastructure-only — no `ToDomain()`/`FromDomain()` since event sourcing is the persistence mechanism
+- **Projections** (one per domain event) sync domain events → Identity tables via `UserManager`
+- **Login** is a Command — reads from Identity tables via `IUtilisateurAuthReader`, returns a JWT value object
 
 ## Password Handling
 
 ### Flow
 
-1. **Validation** — `MotDePasse.Creer(raw)` validates business rules (min 8 chars, 1 uppercase, 1 digit). Transient value object — never stored.
-2. **Hashing** — `IPasswordHasher.Hash(raw)` produces a `MotDePasseHash` (Value Object). Port defined in `Application/Ports`, implementation uses Identity's `PasswordHasher<T>`.
-3. **Storage** — `MotDePasseHash` wraps the opaque hash string. This is what `Utilisateur` stores.
-4. **Verification** — `IPasswordHasher.Verifier(raw, hash)` takes a `MotDePasseHash` and delegates to Identity.
+1. **Validation** — `MotDePasse.Creer(raw)` validates business rules. Transient — never stored.
+2. **Hashing** — `IPasswordHasher.Hash(raw)` → `MotDePasseHash`. Implementation uses Identity's `PasswordHasher<T>`.
+3. **Storage** — Hash stored in event store (aggregate) AND projected to `ApplicationUser.PasswordHash`.
+4. **Verification** — `IPasswordHasher.Verifier(raw, hash)` delegates to Identity's `PasswordHasher<T>`.
 
 ### Rules
 
 - **Never store raw passwords** in the domain. `Utilisateur` holds `MotDePasseHash`, not `MotDePasse`.
 - **`MotDePasse`** is a validation-only value object. Discarded after the handler uses it.
 - **`MotDePasseHash`** is an opaque storage value object. `Reconstituer(string)` for persistence.
-- The **`IPasswordHasher`** port returns `MotDePasseHash` (Value Object), not a raw string.
+- The **`IPasswordHasher`** port returns `MotDePasseHash`, not a raw string.
+
+## Roles
+
+- **`RoleUtilisateur`** is a domain value object (enum-encapsulated: `Utilisateur`, `Administrateur`)
+- Roles are assigned via `Utilisateur.AttribuerRole()` → raises `RoleAttribue` event
+- `RoleAttribueIdentityProjection` syncs to `AspNetUserRoles` via `UserManager`
+- Default role on inscription: `RoleUtilisateur.Utilisateur`
+
+## Authentication (JWT)
+
+### Ports
+
+| Port | Location | Purpose |
+|---|---|---|
+| `IPasswordHasher` | `Application/Ports` | Hash + verify passwords |
+| `ITokenGenerator` | `Application/Ports` | Generate JWT from user info + roles |
+| `IUtilisateurAuthReader` | `Application/Ports` | Read auth data (email → id, hash, pseudonyme, roles) |
+| `ILoginAttemptTracker` | `Application/Ports` | Lockout check, record failed attempts, reset on success |
+
+### Flow
+
+1. `SeConnecter` command → handler checks lockout via `ILoginAttemptTracker`
+2. Reads auth info via `IUtilisateurAuthReader`
+3. Verifies password via `IPasswordHasher` (records failure via `ILoginAttemptTracker` if wrong)
+4. Resets attempt counter via `ILoginAttemptTracker` on success
+5. Generates JWT via `ITokenGenerator` with claims: `sub`, `email`, `name`, `role`
+6. Returns `JetonAuthentification` value object
+
+### Infrastructure Implementations
+
+| Port | Implementation | Source |
+|---|---|---|
+| `IPasswordHasher` | `IdentityPasswordHasher` | Identity's `PasswordHasher<ApplicationUser>` |
+| `ITokenGenerator` | `JwtTokenGenerator` | `IConfiguration` (Jwt section) |
+| `IUtilisateurAuthReader` | `EfCoreUtilisateurAuthReader` | `UserManager<ApplicationUser>` |
+| `ILoginAttemptTracker` | `IdentityLoginAttemptTracker` | `UserManager` (lockout + access failed) |
 
 ## Persistence Model
 
 ```csharp
-// Infrastructure
-public sealed class ApplicationUser : IdentityUser<Guid>
+// Infrastructure — no ToDomain/FromDomain (event sourcing is the source of truth)
+internal sealed class ApplicationUser : IdentityUser<Guid>
 {
+    public string Pseudonyme { get; set; } = string.Empty;
     public string Statut { get; set; } = string.Empty;
-    public string TokenDeConfirmation { get; set; } = string.Empty;
-    public DateTimeOffset TokenExpireA { get; set; }
-
-    public Utilisateur ToDomain() => ...;
-    public static ApplicationUser FromDomain(Utilisateur u) => ...;
 }
 ```
 
 ## DbContext
 
-`AppDbContext` inherits from `IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>`.
+`AppIdentityDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>` — points to Read DB connection string.
+
+## Projections (Domain Events → Identity)
+
+| Event | Projection | Action |
+|---|---|---|
+| `UtilisateurInscrit` | `UtilisateurInscritIdentityProjection` | `UserManager.CreateAsync()` + `AddToRoleAsync()` |
+| `RoleAttribue` | `RoleAttribueIdentityProjection` | `UserManager.RemoveFromRolesAsync()` + `AddToRoleAsync()` |
 
 ## Naming Conventions
 
 | Element | Convention | Example |
 |---|---|---|
-| Identity user model | `ApplicationUser` | `public sealed class ApplicationUser : IdentityUser<Guid>` |
-| Password hasher port | `IPasswordHasher` | Defined in `Application/Ports` |
-| Password hasher impl | `IdentityPasswordHasher` | Uses `PasswordHasher<ApplicationUser>` |
-| Hash value object | `MotDePasseHash` | `readonly record struct`, `Reconstituer(string)` |
-| Validation value object | `MotDePasse` | `Creer(string)` validates rules, transient use only |
+| Identity user model | `ApplicationUser` | `internal sealed class ApplicationUser : IdentityUser<Guid>` |
+| Identity DbContext | `AppIdentityDbContext` | Shares Read DB connection |
+| Port → Impl | `I<Role>` → `<Technology><Role>` | `ITokenGenerator` → `JwtTokenGenerator` |
+| Identity projections | Event name + `IdentityProjection` | `<Event>IdentityProjection` |
+| Login command | French verb | Domain ubiquitous language |
+| JWT value object | `readonly record struct` | Wraps token string |
+| Role value object | Enum-encapsulated | Static instances + `Creer(string)` validation |
+
+## Sécurité basique
+
+### Politique de mot de passe
+
+- Les invariants de mot de passe sont définis dans le Value Object `MotDePasse` (domaine) : longueur minimale 8 caractères, au moins 1 majuscule, 1 chiffre, 1 caractère spécial.
+- Les options `Identity` dans `AddIdentity<>()` doivent être synchronisées avec ces invariants domaine (double barrière défensive).
+- `MotDePasse` est un VO transient (validation uniquement) — jamais stocké. Le hash est dans `MotDePasseHash`.
+
+### Anti brute-force (lockout)
+
+- **Configuration Identity** : activer `Lockout` dans `AddIdentity<>()` options :
+  ```csharp
+  options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+  options.Lockout.MaxFailedAccessAttempts = 5;
+  options.Lockout.AllowedForNewUsers = true;
+  ```
+- **Port `ILoginAttemptTracker`** (Application/Ports) : vérifie et enregistre les tentatives de connexion. Trois méthodes :
+  - `EstVerrouilleAsync(string email, ct)` → `bool`
+  - `EnregistrerEchecAsync(string email, ct)` — incrémente le compteur d'échecs
+  - `ReinitialiserAsync(string email, ct)` — remet à zéro après un succès
+- **Implémentation `IdentityLoginAttemptTracker`** (Infrastructure) : délègue à `UserManager.IsLockedOutAsync()`, `AccessFailedAsync()`, `ResetAccessFailedCountAsync()`.
+- **Le handler `SeConnecter`** doit :
+  1. Vérifier le lockout **avant** la vérification du mot de passe
+  2. Enregistrer un échec si le mot de passe est incorrect
+  3. Réinitialiser le compteur après un succès
+
+### Rate limiting
+
+- Utiliser `AddRateLimiter()` (ASP.NET Core) avec une politique `"auth"` (fixed window : 5 requêtes/minute).
+- Appliquer `.RequireRateLimiting("auth")` sur les endpoints `/api/identite/connexion` et `POST /api/identite/utilisateurs`.
+- Le rejet retourne `429 Too Many Requests`.
+
+### Messages d'erreur génériques
+
+- Le message d'erreur de login est toujours `"Email ou mot de passe incorrect."` — que l'email n'existe pas OU que le mot de passe soit faux. Ne jamais révéler lequel.
+- Le message de lockout est `"Compte temporairement verrouillé. Réessayez plus tard."` — ne jamais indiquer le nombre de tentatives restantes.
+
+### CORS
+
+- En développement : `AllowAnyOrigin()` acceptable.
+- En production : restreindre aux domaines frontend autorisés.
+
+## Common Mistakes
+
+| Mistake | Why it's wrong | Correct approach |
+|---|---|---|
+| Using `UserManager` to create/update users directly | Bypasses domain — Identity is a projection target, not a write model | All writes go through the aggregate → domain events → projection |
+| Adding `ToDomain()`/`FromDomain()` on `ApplicationUser` | Event sourcing is the persistence mechanism, not Identity tables | `ApplicationUser` is infrastructure-only, synced via projections |
+| Putting `PasswordHasher<T>` or `UserManager` in Application layer | Identity is infrastructure — Application only knows ports | Use `IPasswordHasher`, `IUtilisateurAuthReader` ports |
+| Returning Identity types (`IdentityResult`, `ApplicationUser`) from ports | Leaks infrastructure into Application | Ports return domain Value Objects or primitives |
+| Using `MigrateAsync()` in startup without guarding | Breaks build-time OpenAPI generation (no DB available) | Use SQL table-existence check + `CreateTablesAsync()` |
+| Not checking lockout in login handler | Brute-force attacks succeed without limit | Check `ILoginAttemptTracker.EstVerrouilleAsync()` before password verification |
+| Omitting rate limiting on auth endpoints | Automated attacks can flood login/registration | Apply `RequireRateLimiting("auth")` on sensitive endpoints |
+| Permissive password policy in production | Weak passwords compromise accounts | Enforce invariants in `MotDePasse` VO + synchronize Identity options |
 
 
 ---

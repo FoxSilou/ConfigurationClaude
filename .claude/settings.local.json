@@ -1,9 +1,14 @@
 {
   "permissions": {
-    "defaultMode": "auto",
     "allow": [
       "Bash(cat)",
-      "Bash(bash /tmp/check_skills.sh)"
-    ]
+      "Bash(bash /tmp/check_skills.sh)",
+      "Bash(find C:\\\\Developpement\\\\Perso\\\\ConfigurationClaude\\\\backend\\\\src\\\\Identity:*)",
+      "Bash(dotnet add:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet test:*)",
+      "Bash(dotnet ef migrations:*)"
+    ],
+    "defaultMode": "auto"
   }
 }

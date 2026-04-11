@@ -126,7 +126,20 @@ Create the persistence layer and port implementations for this bounded context.
 
 #### 1. Identity Setup (if Identité bounded context)
 
-If the bounded context involves user authentication, follow rule `identity-framework.md` for the full setup (ApplicationUser, IdentityPasswordHasher, AppDbContext inheritance).
+If the bounded context involves user authentication, follow rule `identity-framework.md` for the full hybrid Identity pattern. Key steps:
+
+- Create `ApplicationUser`, `AppIdentityDbContext`, `IdentityDataSeeder` (infra layer, shares Read DB)
+- Create Identity projections syncing domain events → Identity tables via `UserManager`
+- For JWT: create `ITokenGenerator`, `IUtilisateurAuthReader` ports + infrastructure implementations
+
+See the rule for the complete checklist, naming conventions, and common mistakes to avoid.
+
+**Security hardening** (see rule `identity-framework.md` § Sécurité basique):
+- Activate `Lockout` options in `AddIdentity<>()` (15 min lockout, 5 attempts max)
+- Create port `ILoginAttemptTracker` (Application/Ports) with `EstVerrouilleAsync`, `EnregistrerEchecAsync`, `ReinitialiserAsync`
+- Create adapter `IdentityLoginAttemptTracker` (Infrastructure/Adapters) delegating to `UserManager`
+- Enforce password policy in `MotDePasse` VO (min 8 chars, 1 uppercase, 1 digit, 1 special) + synchronize Identity `Password` options
+- Register `AddRateLimiter()` in DI (reminder for Phase 2 API: apply `RequireRateLimiting("auth")` on auth endpoints)
 
 #### 2. Event Sourcing Infrastructure (default)
 
