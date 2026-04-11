@@ -51,5 +51,11 @@ This project follows the **State Rebuilder** pattern (also known as "external fo
 | Domain events | French past participle (unchanged) | `PartieCree`, `JoueurRejoint` |
 | Snapshot class | Aggregate name + `Snapshot` | `PartieSnapshot` |
 
+### Common mistakes
+
+| Mistake | Why it breaks | Correct approach |
+|---|---|---|
+| Registering `DomainEventNotificationHandler<TEvent>` once per handler instead of once per event type | Each handler is called N times (N = number of handlers for that event), causing duplicate inserts / EF Core tracking conflicts | `AddDomainEventHandlers` deduplicates via `HashSet<Type>` — always use it, never register notification handlers manually |
+
 
 ---

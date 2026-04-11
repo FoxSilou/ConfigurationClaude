@@ -282,9 +282,11 @@ services.AddHostedService<AsyncProjectionWorker>();
 ```
 
 The `AddDomainEventHandlers` method (defined in `Shared.Write.Infrastructure`) scans assemblies for `IDomainEventHandler<T>` implementations and registers:
-1. `IDomainEventHandler<TEvent>` → concrete handler (Scoped)
-2. `INotificationHandler<DomainEventNotification<TEvent>>` → `DomainEventNotificationHandler<TEvent>` (Transient)
+1. `IDomainEventHandler<TEvent>` → concrete handler (Scoped) — **one registration per handler implementation**
+2. `INotificationHandler<DomainEventNotification<TEvent>>` → `DomainEventNotificationHandler<TEvent>` (Transient) — **one registration per event type** (deduplicated via `HashSet<Type>`)
 3. `IDomainEventBus` → `MediatRDomainEventBus` (Scoped)
+
+> ⚠️ **Piège** : `DomainEventNotificationHandler<TEvent>` doit être enregistré **une seule fois par type d'événement**, pas une fois par handler. Si plusieurs handlers existent pour le même événement (ex: `PartieCreeProjection` côté Read ET `PartieCreeIdentityProjection` côté Write), un enregistrement dupliqué provoque l'appel de chaque handler N fois (une fois par `DomainEventNotificationHandler` enregistré), ce qui casse les projections qui font Add + SaveChanges (EF Core tracking conflict). `AddDomainEventHandlers` gère cette déduplication automatiquement.
 
 ## Naming conventions
 

@@ -7,7 +7,8 @@
       "Bash(dotnet add:*)",
       "Bash(dotnet build:*)",
       "Bash(dotnet test:*)",
-      "Bash(dotnet ef migrations:*)"
+      "Bash(dotnet ef migrations:*)",
+      "Bash(xargs grep:*)"
     ],
     "defaultMode": "auto"
   }
