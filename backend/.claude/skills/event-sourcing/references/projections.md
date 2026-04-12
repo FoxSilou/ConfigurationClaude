@@ -89,6 +89,40 @@ internal sealed class JoueurRejointProjection(ReadDbContext readDb)
 
 Each handler is a single class responsible for one event type. This follows SRP and provides compile-time type safety — no casts, no switch statements.
 
+## Side-effect projection example (email, notifications)
+
+Projections are not limited to materializing read models. They can also trigger **side-effects** like sending emails or notifications. The pattern is the same — `IDomainEventHandler<TEvent>` — but the handler calls an application port instead of writing to `ReadDbContext`.
+
+```csharp
+// Write/Infrastructure/Projections/UtilisateurInscritEmailProjection.cs
+internal sealed class UtilisateurInscritEmailProjection(
+    IEmailSender emailSender,
+    ILogger<UtilisateurInscritEmailProjection> logger)
+    : IDomainEventHandler<UtilisateurInscrit>
+{
+    public async Task HandleAsync(UtilisateurInscrit @event, CancellationToken ct = default)
+    {
+        try
+        {
+            await emailSender.EnvoyerEmailDeConfirmationAsync(
+                @event.Email, @event.TokenDeConfirmation, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Échec de l'envoi de l'email de confirmation pour {UserId}",
+                @event.UtilisateurId.Valeur);
+        }
+    }
+}
+```
+
+Key differences from read-model projections:
+- Lives in **Write Infrastructure** (not Read) since it's a side-effect of the write operation
+- **Catches exceptions** — a failed email must not roll back the registration
+- Calls an **application port** (`IEmailSender`) instead of writing to `ReadDbContext`
+- The port uses **Value Objects** in its signature, not primitives
+
 ## Read model
 
 ```csharp

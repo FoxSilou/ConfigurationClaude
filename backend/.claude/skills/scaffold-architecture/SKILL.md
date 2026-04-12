@@ -173,6 +173,28 @@ The shared ES infrastructure lives in `Shared.Write.Infrastructure` and `Shared.
 
 ---
 
+## Notifications (Email, SMS, etc.)
+
+When a domain event must trigger a notification (email, SMS, push…), follow this pattern :
+
+- **Port** dans `Application/Ports/` — abstraction fonctionnelle, signatures avec Value Objects
+  - Ex: `IEmailSender.EnvoyerEmailDeConfirmationAsync(AdresseEmail, TokenDeConfirmation, ct)`
+- **Adaptateur dev** dans `Infrastructure/Adapters/` — log dans la console via `ILogger` (pas de dépendance externe)
+  - Ex: `LogEmailSender`
+- **Adaptateur prod** dans `Infrastructure/Adapters/` — implémentation réelle (MailKit, SendGrid, Twilio…)
+  - Ex: `SmtpEmailSender`
+- **Projection** dans `Infrastructure/Projections/` — `IDomainEventHandler<TEvent>` qui appelle le port
+  - Ex: `UtilisateurInscritEmailProjection` réagit à `UtilisateurInscrit`
+- **Sélection d'adaptateur** via configuration (`appsettings.json`) dans l'extension DI du BC
+- **L'envoi ne se fait JAMAIS dans le command handler** — toujours via une projection sur l'événement domaine (side-effect découplé)
+- La projection catch les exceptions et log les erreurs sans faire échouer la transaction d'écriture
+
+```
+Domain Event → IDomainEventBus → Projection → IEmailSender (port) → Adapter (Log/Smtp)
+```
+
+---
+
 ## Authentication & Identity (Hybrid Pattern)
 
 When a BC involves user authentication, follow the hybrid pattern described in rule `identity-framework.md`:
