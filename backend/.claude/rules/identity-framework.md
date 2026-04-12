@@ -101,12 +101,24 @@ internal sealed class ApplicationUser : IdentityUser<Guid>
 
 `AppIdentityDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>` — points to Read DB connection string.
 
-## Projections (Domain Events → Identity)
+## Projections (Domain Events → Identity / Email)
 
 | Event | Projection | Action |
 |---|---|---|
 | `UtilisateurInscrit` | `UtilisateurInscritIdentityProjection` | `UserManager.CreateAsync()` + `AddToRoleAsync()` |
+| `UtilisateurInscrit` | `UtilisateurInscritEmailProjection` | `IEmailSender.EnvoyerEmailDeConfirmationAsync()` |
 | `RoleAttribue` | `RoleAttribueIdentityProjection` | `UserManager.RemoveFromRolesAsync()` + `AddToRoleAsync()` |
+
+## Email de confirmation
+
+L'email de confirmation est envoyé via une **projection** sur `UtilisateurInscrit` (side-effect découplé du command handler).
+
+- **Port** : `IEmailSender` dans `Application/Ports/` — prend `AdresseEmail` et `TokenDeConfirmation` (Value Objects)
+- **Projection** : `UtilisateurInscritEmailProjection` dans `Infrastructure/Projections/` — `IDomainEventHandler<UtilisateurInscrit>`
+- **Adaptateurs** : sélection via configuration (`Email:Provider` dans `appsettings.json`)
+  - `LogEmailSender` — log le token dans la console (dev, `"Provider": "Log"`)
+  - `SmtpEmailSender` — envoi réel via MailKit (prod, `"Provider": "Smtp"`)
+- Le `TokenDeConfirmation` est généré dans l'agrégat à l'inscription et porté par l'événement `UtilisateurInscrit`
 
 ## Naming Conventions
 
