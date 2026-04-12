@@ -8,8 +8,31 @@
       "Bash(dotnet build:*)",
       "Bash(dotnet test:*)",
       "Bash(dotnet ef migrations:*)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(dotnet --list-sdks)",
+      "Bash(dotnet run:*)",
+      "Bash(kill %1)",
+      "Bash(wait)",
+      "Skill(update-config)"
     ],
-    "defaultMode": "auto"
+    "defaultMode": "bypassPermissions",
+    "deny": [
+      "Bash(rm -rf*)",
+      "Bash(rm -fr*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -fd*)",
+      "Bash(git clean -f*)",
+      "Bash(git branch -D*)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore .*)",
+      "Bash(git commit --amend*)",
+      "Bash(git rebase*)",
+      "Bash(dotnet ef database drop*)",
+      "Bash(dotnet nuget push*)",
+      "Bash(gh pr merge*)",
+      "Bash(gh release*)"
+    ]
   }
 }
