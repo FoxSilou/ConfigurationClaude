@@ -12,8 +12,8 @@
 !CLAUDE.md
 !.claude/
 !.claude/**
-!.scripts/
-!.scripts/**
+!scripts/
+!scripts/**
 
 # 4. Backend level — unlock parent then Claude Code files
 !backend/
