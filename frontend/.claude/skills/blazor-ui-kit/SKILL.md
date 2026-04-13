@@ -3,7 +3,8 @@ name: blazor-ui-kit
 description: >
   Utiliser quand l'utilisateur crée un composant UI, un wrapper Radzen, une grille, un dialogue,
   un formulaire, ou câble un composant avec un Presenter. Aussi quand il mentionne Radzen,
-  DataGrid, Dialog, kit UI, ou veut remplacer un usage direct de Radzen par un wrapper maison.
+  GrilleDonnees, Dialogue, Bouton, ChampTexte, kit UI, ou veut remplacer un usage direct de
+  Radzen par un wrapper maison.
 user-invocable: false
 ---
 
@@ -29,7 +30,7 @@ vers celui de la bibliothèque, exactement comme un Gateway traduit vers HTTP.
 2. **Nommer en français avec le vocabulaire métier** quand pertinent (`Colonnes`, `Source`, `EnChargement`)
 3. **Centraliser les valeurs par défaut** dans le wrapper (taille de page, format de date, densité)
 4. **Un `@using Radzen` ne doit jamais apparaître dans une page métier** — uniquement dans les wrappers
-5. **Noms directs sans préfixe** : `DataGrid`, `Dialog`, `Button`, `TextBox`, `DropDown`, `[Projet]DialogService`
+5. **Noms français directs sans préfixe** : `GrilleDonnees`, `Dialogue`, `Bouton`, `ChampTexte`, `ListeDeroulante`, `[Projet]DialogueService`. Les Field Presenters suivent la même convention : `ChampEmail`, `ChampMotDePasse`, `ChampPseudonyme`. **Ne jamais** utiliser d'anglicismes (`Button`, `TextBox`, `DataGrid`) — ils trahissent une fuite du vocabulaire Radzen.
 
 ### Structure de dossiers
 
@@ -38,11 +39,15 @@ UI.Blazor/
 ├── Components/
 │   ├── Kit/                    ← Wrappers Radzen (seul endroit avec @using Radzen)
 │   │   ├── _Imports.razor      ← @using Radzen ici uniquement
-│   │   ├── DataGrid.razor
-│   │   ├── Dialog.razor
-│   │   ├── Button.razor
-│   │   ├── TextBox.razor
-│   │   └── Notification.razor
+│   │   ├── GrilleDonnees.razor
+│   │   ├── Dialogue.razor
+│   │   ├── Bouton.razor
+│   │   ├── ChampTexte.razor
+│   │   ├── ListeDeroulante.razor
+│   │   ├── ChampEmail.razor
+│   │   ├── ChampMotDePasse.razor
+│   │   ├── ChampPseudonyme.razor
+│   │   └── Notifications.razor
 │   └── Shared/                 ← Composants métier réutilisables (utilisent les wrappers Kit)
 │       ├── PanneauDetail.razor
 │       └── BarreRecherche.razor
@@ -63,7 +68,7 @@ Les `_Imports.razor` des autres dossiers n'ont PAS ces using.
 
 ## Templates de wrappers
 
-### DataGrid — Grille de données
+### GrilleDonnees — Grille de données
 
 ```razor
 @typeparam TItem
@@ -122,17 +127,17 @@ Les `_Imports.razor` des autres dossiers n'ont PAS ces using.
 #### Usage dans une page métier
 
 ```razor
-<DataGrid TItem="ArticleResume"
-             Source="@Presenter.ArticlesAffiches"
-             EnChargement="@Presenter.IndicateurChargementListeVisible"
-             OnLigneSelectionnee="OnArticleSelectionne">
+<GrilleDonnees TItem="ArticleResume"
+               Source="@Presenter.ArticlesAffiches"
+               EnChargement="@Presenter.IndicateurChargementListeVisible"
+               OnLigneSelectionnee="OnArticleSelectionne">
     <Colonnes>
         <RadzenDataGridColumn TItem="ArticleResume" Property="Titre" Title="Titre" />
         <RadzenDataGridColumn TItem="ArticleResume" Property="Categorie" Title="Catégorie" Width="150px" />
         <RadzenDataGridColumn TItem="ArticleResume" Property="DatePublication" Title="Date" Width="120px"
                               FormatString="{0:dd/MM/yyyy}" />
     </Colonnes>
-</DataGrid>
+</GrilleDonnees>
 
 @code {
     private async Task OnArticleSelectionne(ArticleResume article)
@@ -149,7 +154,7 @@ en même temps que le wrapper, pas page par page.
 
 ---
 
-### Dialog — Dialogue modal
+### Dialogue — Dialogue modal
 
 ```razor
 <RadzenDialog @ref="_dialog" />
@@ -162,7 +167,7 @@ en même temps que le wrapper, pas page par page.
 }
 ```
 
-Le dialogue Radzen fonctionne via un service (`DialogService`). L'encapsulation passe
+Le dialogue Radzen fonctionne via un service (`DialogService` Radzen). L'encapsulation passe
 par un **service wrapper maison** plutôt qu'un composant :
 
 ```csharp
@@ -170,18 +175,18 @@ namespace MonApp.UI.Blazor.Components.Kit;
 
 using Radzen;
 
-public class [Projet]DialogService
+public class [Projet]DialogueService
 {
-    private readonly DialogService _radzenDialog;
+    private readonly DialogService _dialogueRadzen;
 
-    public [Projet]DialogService(DialogService radzenDialog)
+    public [Projet]DialogueService(DialogService dialogueRadzen)
     {
-        _radzenDialog = radzenDialog;
+        _dialogueRadzen = dialogueRadzen;
     }
 
     public async Task<bool> ConfirmerAsync(string titre, string message)
     {
-        var result = await _radzenDialog.Confirm(message, titre,
+        var result = await _dialogueRadzen.Confirm(message, titre,
             new ConfirmOptions
             {
                 OkButtonText = "Confirmer",
@@ -194,7 +199,7 @@ public class [Projet]DialogService
     public async Task AfficherAsync<TComponent>(string titre,
         Dictionary<string, object>? parametres = null) where TComponent : ComponentBase
     {
-        await _radzenDialog.OpenAsync<TComponent>(titre,
+        await _dialogueRadzen.OpenAsync<TComponent>(titre,
             parametres ?? [],
             new DialogOptions
             {
@@ -203,7 +208,7 @@ public class [Projet]DialogService
             });
     }
 
-    public void Fermer() => _radzenDialog.Close();
+    public void Fermer() => _dialogueRadzen.Close();
 }
 ```
 
@@ -211,13 +216,13 @@ public class [Projet]DialogService
 
 ```csharp
 // Program.cs
-builder.Services.AddScoped<DialogService>();      // Radzen
-builder.Services.AddScoped<[Projet]DialogService>();    // Wrapper maison
+builder.Services.AddScoped<DialogService>();             // Radzen
+builder.Services.AddScoped<[Projet]DialogueService>();   // Wrapper maison
 ```
 
 ---
 
-### Button — Bouton
+### Bouton — Bouton
 
 ```razor
 <RadzenButton Text="@Libelle"
@@ -254,7 +259,7 @@ builder.Services.AddScoped<[Projet]DialogService>();    // Wrapper maison
 
 ---
 
-### TextBox — Champ texte
+### ChampTexte — Champ texte
 
 ```razor
 <RadzenTextBox Value="@Valeur"
@@ -291,11 +296,13 @@ builder.Services.AddScoped<[Projet]DialogService>();    // Wrapper maison
 
 ---
 
-### FieldBox — Champ piloté par un Field Presenter
+### Champs de formulaire pilotés par un Field Presenter
 
 Quand un champ de formulaire est associé à un Field Presenter (voir skill `blazor-hexagonal`),
 le wrapper reçoit le Presenter complet en paramètre au lieu de propriétés individuelles.
 Il affiche automatiquement le message d'erreur.
+
+Exemple type `ChampEmail.razor` :
 
 ```razor
 @using MonApp.UI.Domain.Presenters
@@ -315,7 +322,7 @@ Il affiche automatiquement le message d'erreur.
 
 @code {
     [Parameter, EditorRequired]
-    public [Champ]Presenter Presenter { get; set; }
+    public EmailPresenter Presenter { get; set; } = default!;
 
     [Parameter, EditorRequired]
     public EventCallback<string> OnValeurChange { get; set; }
@@ -331,12 +338,12 @@ Il affiche automatiquement le message d'erreur.
 ```
 
 Conventions :
-- **Nom** : le concept du champ sans préfixe — `EmailBox`, `PasswordBox`, `PseudonymeBox`
+- **Nom** : le concept du champ préfixé par `Champ` — `ChampEmail`, `ChampMotDePasse`, `ChampPseudonyme`
 - Le composant Radzen interne varie selon le type : `RadzenTextBox`, `RadzenPassword`, etc.
 - Le wrapper vit dans `Components/Kit/` avec les autres wrappers
 - La page câble `Presenter="@Presenter.Email"` et `OnValeurChange="@Presenter.DefinirEmail"`
 
-Exemples existants : `EmailBox.razor`, `PasswordBox.razor`, `PseudonymeBox.razor`
+Exemples existants : `ChampEmail.razor`, `ChampMotDePasse.razor`, `ChampPseudonyme.razor`
 
 ---
 
@@ -425,7 +432,7 @@ public sealed class FakeNotificationService : INotificationService
 
 ---
 
-### DropDown — Liste déroulante
+### ListeDeroulante — Liste déroulante
 
 ```razor
 @typeparam TValue
@@ -505,23 +512,23 @@ La page fait le pont entre les deux.
 
 <h1>Articles</h1>
 
-<DropDown TValue="string"
-             Source="@Presenter.CategoriesDisponibles.Select(c => new { Id = c, Libelle = c })"
-             Valeur="@Presenter.FiltreCategorie"
-             ProprieteTexte="Libelle"
-             ProprieteValeur="Id"
-             Placeholder="Toutes les catégories"
-             OnChangement="OnFiltreChange" />
+<ListeDeroulante TValue="string"
+                 Source="@Presenter.CategoriesDisponibles.Select(c => new { Id = c, Libelle = c })"
+                 Valeur="@Presenter.FiltreCategorie"
+                 ProprieteTexte="Libelle"
+                 ProprieteValeur="Id"
+                 Placeholder="Toutes les catégories"
+                 OnChangement="OnFiltreChange" />
 
-<DataGrid TItem="ArticleResume"
-             Source="@Presenter.ArticlesAffiches"
-             EnChargement="@Presenter.IndicateurChargementListeVisible"
-             OnLigneSelectionnee="OnArticleSelectionne">
+<GrilleDonnees TItem="ArticleResume"
+               Source="@Presenter.ArticlesAffiches"
+               EnChargement="@Presenter.IndicateurChargementListeVisible"
+               OnLigneSelectionnee="OnArticleSelectionne">
     <Colonnes>
         <RadzenDataGridColumn TItem="ArticleResume" Property="Titre" Title="Titre" />
         <RadzenDataGridColumn TItem="ArticleResume" Property="Categorie" Title="Catégorie" Width="150px" />
     </Colonnes>
-</DataGrid>
+</GrilleDonnees>
 
 @if (Presenter.PanneauDetailVisible)
 {
@@ -578,4 +585,4 @@ La page fait le pont entre les deux.
 - [ ] Les valeurs par défaut sont centralisées dans le wrapper
 - [ ] Le Presenter ne référence aucun type Radzen
 - [ ] Le câblage Presenter ↔ Wrapper passe par la page (pas de couplage direct)
-
+- [ ] Aucun anglicisme de nommage (`Button`, `TextBox`, `DataGrid`, `Dialog`, `DropDown`) dans Kit/ ou pages

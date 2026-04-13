@@ -74,5 +74,34 @@ public sealed record CreerPartie(string Nom) : ICommand<PartieId>
 | Return type | Typed Id or `Unit` | `PartieId`, `Unit` |
 | Domain event | French past participle + noun, **no** suffix | `PartieCree`, `CommandeAnnulee` |
 
+## Nommage des paramètres de commande — collisions avec les Value Objects
+
+Les paramètres de la `record` command portent un **nom primitif reflétant le sens métier** : `Email`, `Pseudonyme`, `MotDePasse`, `Nom`. Ils ne prennent **pas** de suffixe artificiel (`EmailBrut`, `PseudonymeString`) pour éviter la collision avec les Value Objects de même nom.
+
+**Conséquence** : dans le handler, l'appel à la factory du VO doit utiliser le **nom pleinement qualifié** quand le paramètre de la commande cache le type :
+
+```csharp
+public sealed record InscrireUtilisateur(string Email, string Pseudonyme, string MotDePasse)
+    : ICommand<UtilisateurId>
+{
+    public sealed class Handler(IUtilisateurRepository repo, IPasswordHasher hasher, TimeProvider time)
+        : ICommandHandler<InscrireUtilisateur, UtilisateurId>
+    {
+        public async Task<UtilisateurId> HandleAsync(InscrireUtilisateur commande, CancellationToken ct = default)
+        {
+            var email = AdresseEmail.Creer(commande.Email);
+            // ⚠️ fully-qualified — commande.Pseudonyme cache le type Pseudonyme
+            var pseudonyme = Identite.Write.Domain.ValueObjects.Pseudonyme.Creer(commande.Pseudonyme);
+            var motDePasse = Identite.Write.Domain.ValueObjects.MotDePasse.Creer(commande.MotDePasse);
+            // ...
+        }
+    }
+}
+```
+
+**Interdit** :
+- Renommer le paramètre de la commande pour éviter la collision (`PseudonymeBrut`, `PseudonymeString`) — cela dégrade le vocabulaire ubiquitaire exposé par le contrat commande.
+- Utiliser des `using` alias pour raccourcir — la qualification complète est explicite et locale au handler.
+
 
 ---

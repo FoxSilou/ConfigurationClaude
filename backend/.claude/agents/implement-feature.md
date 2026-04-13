@@ -193,6 +193,15 @@ No user gates during TDD. Run the full cycle (RED → GREEN → REFACTOR) for ev
 - Apply conservative refactoring (rename, extract Value Objects, remove duplication).
 - At the end, present a **detailed summary** for user review (see `tdd-workflow` skill — Autonomous mode final gate).
 
+#### Slicing les features longues (éviter les timeouts de stream)
+
+Les tâches autonomes longues (plus de ~6-8 tests dans la liste, ou impliquant aggregate + projections + endpoint + E2E) risquent de dépasser les timeouts de stream en une seule passe. **Slicer explicitement** :
+
+1. **Déclarer les tranches** en début d'exécution (par ex. `Tranche A: VOs + Command + Handler unit tests`, `Tranche B: projections + endpoint`, `Tranche C: E2E`).
+2. **Checkpoint build-green** entre chaque tranche : lancer `dotnet build` + `dotnet test` et annoncer explicitement `[TRANCHE A VERTE — passage à B]` avant de continuer.
+3. Si le stream se coupe malgré tout, l'utilisateur relance le même prompt : le checkpoint indique sans ambiguïté où reprendre (le dernier `[TRANCHE X VERTE]` visible dans la sortie).
+4. Ne **jamais** claimer "feature complète" avant la dernière tranche (généralement E2E) verte.
+
 ### Additional rules for this agent
 
 - Implement **one Command or Query at a time**. Do not start a second use case before the first is complete.

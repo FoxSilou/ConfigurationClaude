@@ -15,9 +15,11 @@ directement dans les pages ou composants métier. Ils sont systématiquement enc
 
 ## Convention de nommage
 
-Les wrappers portent le nom du concept UI sans préfixe : `DataGrid`, `Dialog`, `Button`, `TextBox`, `DropDown`.
-Pour les services, utiliser `[Projet]DialogService` pour éviter le conflit avec le `DialogService` Radzen.
+Les wrappers portent le nom **français** du concept UI sans préfixe : `GrilleDonnees`, `Dialogue`, `Bouton`, `ChampTexte`, `ListeDeroulante`. Les champs de formulaire liés à un Field Presenter suivent la même convention : `ChampEmail`, `ChampMotDePasse`, `ChampPseudonyme`.
+Pour le service dialogue, utiliser `[Projet]DialogueService` pour éviter le conflit avec le `DialogService` Radzen.
 Ils vivent dans le dossier `Components/Kit/`.
+
+**Interdit** : anglicismes comme `Button`, `TextBox`, `DataGrid`, `Dialog` — ils trahissent une fuite du vocabulaire Radzen dans le code métier.
 
 ## Ce qui est interdit dans une page .razor
 
@@ -26,5 +28,5 @@ Ils vivent dans le dossier `Components/Kit/`.
 
 ## Ce qui est autorisé
 
-- `<DataGrid>`, `<Button>`, `<TextBox>` etc. dans les pages métier
+- `<GrilleDonnees>`, `<Bouton>`, `<ChampTexte>`, `<Dialogue>`, `<ListeDeroulante>` etc. dans les pages métier
 - `@using Radzen` uniquement dans les fichiers wrapper (Components/Kit/)
