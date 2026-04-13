@@ -86,6 +86,57 @@ Domain (source of truth)              Infrastructure (projection target)
 | `IUtilisateurAuthReader` | `EfCoreUtilisateurAuthReader` | `UserManager<ApplicationUser>` |
 | `ILoginAttemptTracker` | `IdentityLoginAttemptTracker` | `UserManager` (lockout + access failed) |
 
+## Accès à l'utilisateur courant
+
+### Principe
+
+L'extraction de l'identifiant et des rôles depuis le `ClaimsPrincipal` est **interdite dans les endpoints API et les handlers**. Elle passe **toujours** par le port `ICurrentUserAccessor` qui retourne le Value Object `UtilisateurCourant`. Aucun endpoint ni handler ne doit manipuler `ClaimsPrincipal`, `FindFirst`, `FindAll`, ou des claim type strings.
+
+### Port (Application)
+
+```csharp
+public interface ICurrentUserAccessor
+{
+    UtilisateurCourant? Obtenir();  // null si non authentifié
+}
+```
+
+### Value Object (Domain)
+
+```csharp
+public readonly record struct UtilisateurCourant
+{
+    public UtilisateurId Id { get; }
+    public IReadOnlyCollection<RoleUtilisateur> Roles { get; }
+
+    public bool EstAdministrateur => Roles.Any(r => r == RoleUtilisateur.Administrateur);
+
+    public static UtilisateurCourant Creer(UtilisateurId id, IEnumerable<RoleUtilisateur> roles);
+}
+```
+
+### Adapter (Infrastructure)
+
+`HttpContextCurrentUserAccessor` utilise les APIs natives :
+
+- `IHttpContextAccessor` (enregistré via `services.AddHttpContextAccessor()`)
+- **`UserManager<ApplicationUser>.GetUserId(ClaimsPrincipal)`** — API native Identity, à préférer à `FindFirst(ClaimTypes.NameIdentifier)` car elle respecte `IdentityOptions.ClaimsIdentity.UserIdClaimType`
+- `user.FindAll(ClaimTypes.Role)` pour les rôles depuis le token (ils y sont écrits par `JwtTokenGenerator`, donc pas de round-trip DB)
+
+### Règles d'utilisation
+
+- **Endpoints** : injecter `ICurrentUserAccessor` directement dans la signature minimal API. L'endpoint ne lit jamais `ClaimsPrincipal`.
+- **Handlers de commande** : injecter `ICurrentUserAccessor` plutôt que de recevoir `demandeurId` / `roles` en paramètre de commande.
+- **Commandes** : ne portent **jamais** l'identifiant ou les rôles de l'utilisateur courant en paramètres. Une commande modélise l'intention métier (cible, données), pas le contexte d'authentification.
+- **Autorisation HTTP** « être authentifié » : `RequireAuthorization()` ou `[Authorize]`.
+- **Autorisation métier** (« seul un admin peut X, ou X soi-même ») : dans le handler, en utilisant `currentUser.Obtenir()` puis lecture de `EstAdministrateur` / `Id`. Lever `DomainException` si refusé → mappée 403 par le middleware Problem Details.
+- **Autorisation purement technique par rôle** (sans règle métier) : `[Authorize(Roles = "Administrateur")]` ou `RequireAuthorization(p => p.RequireRole("Administrateur"))`.
+
+### Tests
+
+- Unit tests : utiliser un **Fake** `ICurrentUserAccessor` (ex. `FakeCurrentUserAccessor` qui retourne un `UtilisateurCourant` configurable). Pas de Mock (cf. `unit-testing.md`).
+- E2E : aucun changement, l'auth passe par le JWT généré par `SeConnecter` et le header `Authorization: Bearer …`.
+
 ## Persistence Model
 
 ```csharp
@@ -206,6 +257,9 @@ L'email de confirmation est envoyé via une **projection** sur `UtilisateurInscr
 | Permissive password policy in production | Weak passwords compromise accounts | Enforce invariants in `MotDePasse` VO + synchronize Identity options |
 | Seeding admin via `INSERT` SQL or `UserManager.CreateAsync` at startup | Bypasses event store — no events produced, projections drift | Dispatch `InscrireUtilisateur` + `ConfirmerEmail` + `AttribuerRole` through `ICommandBus` (see § Seed administrateur) |
 | Hardcoding admin password in `appsettings.json` | Secret leaks via git history | Config holds email/pseudo only; password via `dotnet user-secrets` or env var `IdentitySeed__Password` |
+| Extraire `sub`/`roles` manuellement depuis `ClaimsPrincipal` dans un endpoint ou un handler | Duplication, fuite de claims dans la couche HTTP, fragile (claim mapping JWT, fallback `?? "sub"` inutile) | Injecter `ICurrentUserAccessor` et appeler `Obtenir()` |
+| Passer `roles` ou `demandeurId` en paramètre de commande depuis l'endpoint | Couple le domaine au transport HTTP, contourne le port, pollue la signature de la commande | Le handler injecte `ICurrentUserAccessor` et lit le contexte lui-même |
+| Utiliser `FindFirstValue(ClaimTypes.NameIdentifier)` au lieu de `UserManager.GetUserId(user)` | Ne respecte pas `IdentityOptions.ClaimsIdentity.UserIdClaimType` configuré dans Identity | `UserManager<ApplicationUser>.GetUserId(ClaimsPrincipal)` est l'API officielle Identity, exclusivement dans l'adaptateur `HttpContextCurrentUserAccessor` |
 
 
 ---

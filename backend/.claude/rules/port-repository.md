@@ -47,6 +47,7 @@ public interface I<AggregateName>Repository
 public interface IPdfGenerator { ... }
 public interface IEmailSender { ... }
 public interface IPaymentGateway { ... }
+public interface ICurrentUserAccessor { ... }  // contexte requête courante — retourne VO domaine, jamais ClaimsPrincipal
 ```
 
 ### Implementation (Adapter) — defined in `Infrastructure`
