@@ -125,6 +125,22 @@ Reference skills (no prefix) provide domain knowledge loaded by agents.
 | `/task-scaffold-front` | `@scaffold-front` | Frontend project structure + test harness |
 | `/task-implement-feature-front` | `@implement-feature-front` | TDD Presenter step-by-step (or autonome) |
 
+## Skills externes disponibles (plugin superpowers)
+
+Ces skills ne sont pas câblés dans les agents mais peuvent être invoqués à la demande :
+
+- `superpowers:brainstorming` — avant tout chantier où l'intention n'est pas claire (nouveau domaine, fonctionnalité ambiguë). À utiliser avant d'enchaîner sur `event-storming` ou `implement-feature`.
+- `superpowers:writing-plans` + `superpowers:executing-plans` — chantiers multi-steps avec plan écrit et exécution en session séparée.
+
+Skills auto-chargés par les agents concernés (rien à faire manuellement) :
+
+- `superpowers:systematic-debugging` — chargé par `fix-bug` et `investigate-bug`.
+- `superpowers:verification-before-completion` — chargé par tous les agents produisant un livrable (`scaffold`, `implement-feature`, `fix-bug`, `refactor` + équivalents frontend).
+
+Non adoptés (motivations en memory) : `superpowers:test-driven-development` (conflit avec `tdd-workflow` backend), `superpowers:requesting/receiving-code-review` (redondant avec `code-review-fr`).
+
+---
+
 ### Typical workflow
 
 ```

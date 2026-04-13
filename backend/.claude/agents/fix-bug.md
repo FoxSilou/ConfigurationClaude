@@ -12,6 +12,8 @@ skills:
   - unit-testing
   - e2e-testing
   - backend-conventions
+  - superpowers:systematic-debugging
+  - superpowers:verification-before-completion
 maxTurns: 100
 memory: project
 ---

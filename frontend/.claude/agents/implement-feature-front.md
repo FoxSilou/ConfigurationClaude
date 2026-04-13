@@ -12,6 +12,7 @@ skills:
   - blazor-hexagonal
   - frontend-testing
   - scaffold-architecture
+  - superpowers:verification-before-completion
 memory: project
 maxTurns: 200
 ---

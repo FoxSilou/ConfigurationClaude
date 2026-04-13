@@ -14,6 +14,7 @@ skills:
   - blazor-hexagonal
   - blazor-ui-kit
   - scaffold-architecture
+  - superpowers:verification-before-completion
 maxTurns: 100
 disallowedTools: WebFetch, WebSearch
 memory: project

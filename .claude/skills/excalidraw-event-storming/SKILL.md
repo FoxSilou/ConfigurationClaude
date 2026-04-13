@@ -1,4 +1,3 @@
-
 ---
 name: excalidraw-event-storming
 description: >

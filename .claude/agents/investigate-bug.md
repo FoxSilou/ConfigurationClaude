@@ -11,6 +11,7 @@ model: inherit
 permissionMode: acceptEdits
 skills:
   - frontend-testing
+  - superpowers:systematic-debugging
 disallowedTools: WebFetch, WebSearch
 ---
 

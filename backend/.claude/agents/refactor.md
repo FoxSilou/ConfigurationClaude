@@ -11,6 +11,7 @@ permissionMode: acceptEdits
 skills:
   - unit-testing
   - backend-conventions
+  - superpowers:verification-before-completion
 maxTurns: 100
 memory: project
 ---

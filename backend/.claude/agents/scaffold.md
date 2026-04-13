@@ -14,6 +14,7 @@ permissionMode: acceptEdits
 skills:
   - scaffold-architecture
   - event-sourcing
+  - superpowers:verification-before-completion
 maxTurns: 150
 disallowedTools: WebFetch, WebSearch
 memory: project

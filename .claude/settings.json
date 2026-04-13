@@ -34,5 +34,18 @@
       "Bash(gh pr merge*)",
       "Bash(gh release*)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/check-cs-antipatterns.sh"
+          }
+        ]
+      }
+    ]
   }
 }

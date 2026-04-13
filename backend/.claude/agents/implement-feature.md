@@ -14,6 +14,7 @@ skills:
   - e2e-testing
   - backend-conventions
   - event-sourcing
+  - superpowers:verification-before-completion
 memory: project
 maxTurns: 200
 ---
