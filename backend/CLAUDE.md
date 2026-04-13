@@ -93,6 +93,35 @@ Les fichiers ci-dessous sont chargés automatiquement et font autorité sur leur
 @.claude/rules/shared-kernel.md
 @.claude/rules/value-object.md
 
+## Ownership Matrix — concept → propriétaire
+
+Un seul fichier fait autorité par concept. Les autres peuvent **référencer** mais pas redéfinir. En cas de conflit, le propriétaire gagne.
+
+| Concept | Propriétaire (autorité) | Supporters (référencent) |
+|---|---|---|
+| Aggregate Root (base, invariants, events) | `rules/aggregate.md` | `rules/entity.md`, `skill: event-sourcing` |
+| Entity (private ctor, factories, Reconstituer) | `rules/entity.md` | `rules/aggregate.md` |
+| Value Object (readonly record struct, Creer/Reconstituer) | `rules/value-object.md` | `rules/entity.md` |
+| Command (structure, naming, nested Handler) | `rules/command.md` | `rules/cqrs.md`, `rules/mediatr.md` |
+| Query (structure, naming, Read stack) | `rules/query.md` | `rules/cqrs.md`, `rules/read-model.md` |
+| CQRS séparation Read/Write | `rules/cqrs.md` | `rules/command.md`, `rules/query.md`, `rules/read-model.md` |
+| Read Model (DTOs, read repos, Read infra) | `rules/read-model.md` | `rules/query.md` |
+| Domain Event (naming, factory Creer, OccurredOn) | `rules/domain-event.md` | `rules/aggregate.md`, `rules/event-sourcing.md` |
+| Event Sourcing (State Rebuilder, versioning, upcasters) | `rules/event-sourcing.md` | `skill: event-sourcing` (guide usage) |
+| MediatR comme adapter d'infra | `rules/mediatr.md` | `rules/command.md`, `rules/query.md`, `rules/pipeline-behavior.md` |
+| Pipeline Behaviors (Validation, Logging, Transaction) | `rules/pipeline-behavior.md` | `rules/mediatr.md` |
+| Ports & Repositories (interfaces, adapters, naming) | `rules/port-repository.md` | — |
+| EF Core persistence models (attributs, ToDomain/FromDomain) | `rules/efcore.md` | `rules/read-model.md` |
+| Error handling (DomainException, Result<T>, Problem Details) | `rules/error-handling.md` | — |
+| Shared.Write.Domain (contrat partagé, zéro dép) | `rules/shared-kernel.md` | toutes les rules (base types) |
+| ASP.NET Core Identity (hybrid, projections, JWT, seed) | `rules/identity-framework.md` | `rules/port-repository.md` |
+| Conventions C# (naming, style, Always/Never) | `skill: backend-conventions` | — |
+| TDD discipline (RED/GREEN/REFACTOR, TPP) | `skill: tdd-workflow` | — |
+| Unit testing (Classical, fakes, AAA, <Command>Doit_) | `skill: unit-testing` | — |
+| E2E testing (Testcontainers, WebAppFactory) | `skill: e2e-testing` | — |
+
+**Règle d'ajout** : avant de documenter un concept dans un nouveau fichier, vérifier qu'il n'existe pas déjà un propriétaire. Si oui → éditer le propriétaire. Sinon → créer la rule/skill et ajouter une ligne dans cette matrice.
+
 ## Slash Commands
 
 | Command | Description |

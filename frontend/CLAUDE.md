@@ -49,6 +49,9 @@ src/
 
 @.claude/rules/blazor-hexagonal-frontend.md
 @.claude/rules/encapsulation-composants-ui.md
+@.claude/rules/routing-frontend.md
+@.claude/rules/nav-menu-layout.md
+@.claude/rules/authentification-frontend.md
 
 ## Slash Commands
 
