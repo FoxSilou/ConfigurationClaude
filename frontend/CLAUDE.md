@@ -45,6 +45,11 @@ src/
 → Hexagonal frontend (Presenters): see skill `blazor-hexagonal`
 → UI Kit (wrappers Radzen): see skill `blazor-ui-kit`
 
+## Pattern Rules (auto-loaded)
+
+@.claude/rules/blazor-hexagonal-frontend.md
+@.claude/rules/encapsulation-composants-ui.md
+
 ## Slash Commands
 
 | Command | Description |

@@ -72,6 +72,27 @@ Dependencies flow **inward only**: Api → Application → Domain. Infrastructur
 → E2E testing conventions: see skill `e2e-testing`
 → Event Sourcing pattern (domain-pure aggregates, custom SQL event store, projections): see skill `event-sourcing`
 
+## Pattern Rules (auto-loaded)
+
+Les fichiers ci-dessous sont chargés automatiquement et font autorité sur leurs concepts respectifs.
+
+@.claude/rules/aggregate.md
+@.claude/rules/command.md
+@.claude/rules/cqrs.md
+@.claude/rules/domain-event.md
+@.claude/rules/efcore.md
+@.claude/rules/entity.md
+@.claude/rules/error-handling.md
+@.claude/rules/event-sourcing.md
+@.claude/rules/identity-framework.md
+@.claude/rules/mediatr.md
+@.claude/rules/pipeline-behavior.md
+@.claude/rules/port-repository.md
+@.claude/rules/query.md
+@.claude/rules/read-model.md
+@.claude/rules/shared-kernel.md
+@.claude/rules/value-object.md
+
 ## Slash Commands
 
 | Command | Description |
