@@ -131,6 +131,8 @@ If the bounded context involves user authentication, follow rule `identity-frame
 - Create `ApplicationUser`, `AppIdentityDbContext`, `IdentityDataSeeder` (infra layer, shares Read DB)
 - Create Identity projections syncing domain events → Identity tables via `UserManager`
 - For JWT: create `ITokenGenerator`, `IUtilisateurAuthReader` ports + infrastructure implementations
+- Create `AdministrateurSeeder` (infra layer) — seed event-sourced via `ICommandBus` (`InscrireUtilisateur` → `ConfirmerEmail` → `AttribuerRole`). Config via section `IdentitySeed` (`Email`, `Pseudonyme`) dans `appsettings.json` + password via user-secrets / env var `IdentitySeed__Password`. Invoqué depuis `Program.cs` **juste après** `IdentityDataSeeder.EnsureIdentityDatabaseAsync`, dans le même scope DI. Voir rule `identity-framework.md` § "Seed administrateur" pour la séquence complète et les guards d'idempotence.
+  - ⚠️ **Ordonnancement** : les commandes `InscrireUtilisateur`/`ConfirmerEmail`/`AttribuerRole` sont produites par `/task-implement-feature-back`, pas par le scaffold. Au scaffold BC, créer le seeder avec `throw new NotImplementedException(...)` comme corps, câbler appel + config + `Program.cs` immédiatement, et finaliser la séquence après l'implémentation TDD des 3 commandes. Voir rule `identity-framework.md` § "Ordonnancement scaffold ↔ feature".
 
 See the rule for the complete checklist, naming conventions, and common mistakes to avoid.
 

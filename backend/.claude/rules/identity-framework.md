@@ -174,6 +174,24 @@ L'email de confirmation est envoyé via une **projection** sur `UtilisateurInscr
 - En développement : `AllowAnyOrigin()` acceptable.
 - En production : restreindre aux domaines frontend autorisés.
 
+### Seed administrateur (event-sourced)
+
+- **Principe** : pas d'insertion directe dans l'event store ni les read models. On rejoue les commandes existantes via `ICommandBus` au démarrage — les events produits alimentent l'event store, puis les projections l'Identity DB et les read models naturellement.
+- **Séquence** (cas où l'utilisateur n'existe pas) :
+  1. `ICommandBus.EnvoyerAsync<InscrireUtilisateur, UtilisateurId>(new InscrireUtilisateur(email, pseudonyme, motDePasse))` → retourne l'`UtilisateurId`
+  2. Recharger l'agrégat via `IUtilisateurRepository.ObtenirParIdAsync(id)` pour lire `TokenDeConfirmation.Valeur` (le handler d'inscription ne le retourne pas)
+  3. `ICommandBus.EnvoyerAsync(new ConfirmerEmail(id.Valeur, token))` → passe le statut à `EmailConfirme`
+  4. `ICommandBus.EnvoyerAsync(new AttribuerRole(id.Valeur, RoleUtilisateur.Administrateur.Valeur))`
+- **Configuration** : section `IdentitySeed` dans `appsettings.json` avec `Email` et `Pseudonyme`. Le mot de passe n'est **jamais** commité — user-secrets (`dotnet user-secrets init --project src/Api` puis `dotnet user-secrets set "IdentitySeed:Password" "<mdp>" --project src/Api`) ou variable d'environnement `IdentitySeed__Password`.
+- **Idempotence** : guard obligatoire via `IUtilisateurRepository.ExisteParEmailAsync(email)` avant tout dispatch. Tolérer `DomainException` "existe déjà" dans un `try/catch` comme filet de sécurité (race au premier boot).
+- **Si section/password manquant** : log warning et skip — pas d'exception, pas de crash au démarrage.
+- **Intégration** : classe statique `AdministrateurSeeder.EnsureAdministrateurAsync(IServiceProvider serviceProvider, CancellationToken ct = default)` dans `Identity.Write.Infrastructure/Persistence/`. Appelée dans `Program.cs` dans le même `using var scope = app.Services.CreateScope()` que `IdentityDataSeeder.EnsureIdentityDatabaseAsync`, **juste après** celui-ci (les tables Identity doivent exister et les rôles être seedés avant).
+- **Logs** : `LogInformation` quand seed exécuté ("Seed administrateur en cours pour {Email}…" / "Seed administrateur réussi pour {Email} (id {Id})."), `LogInformation` si déjà présent, `LogWarning` si config incomplète.
+- **Ordonnancement scaffold ↔ feature** : le seeder dépend des commandes `InscrireUtilisateur`, `ConfirmerEmail` et `AttribuerRole`, qui sont produites par `/task-implement-feature-back` (et non par le scaffold). Règle :
+  1. Au scaffold BC Identité (`/task-scaffold-back Identite`), créer le fichier `AdministrateurSeeder.EnsureAdministrateurAsync` avec un corps `throw new NotImplementedException("Finaliser après implémentation de InscrireUtilisateur/ConfirmerEmail/AttribuerRole")`, ajouter la section `IdentitySeed` dans `appsettings.json`, et câbler l'appel dans `Program.cs` dès maintenant (juste après `IdentityDataSeeder.EnsureIdentityDatabaseAsync`, dans le même scope DI).
+  2. Ne **pas** exécuter l'API tant que les 3 commandes ne sont pas implémentées (sinon crash au boot).
+  3. Après `/task-implement-feature-back` sur les 3 commandes, remplacer le `NotImplementedException` par la séquence complète (guard `ExisteParEmailAsync` + 3 dispatchs `ICommandBus` + logs). Tests E2E doivent passer avec un admin seedé au démarrage.
+
 ## Common Mistakes
 
 | Mistake | Why it's wrong | Correct approach |
@@ -186,6 +204,8 @@ L'email de confirmation est envoyé via une **projection** sur `UtilisateurInscr
 | Not checking lockout in login handler | Brute-force attacks succeed without limit | Check `ILoginAttemptTracker.EstVerrouilleAsync()` before password verification |
 | Omitting rate limiting on auth endpoints | Automated attacks can flood login/registration | Apply `RequireRateLimiting("auth")` on sensitive endpoints |
 | Permissive password policy in production | Weak passwords compromise accounts | Enforce invariants in `MotDePasse` VO + synchronize Identity options |
+| Seeding admin via `INSERT` SQL or `UserManager.CreateAsync` at startup | Bypasses event store — no events produced, projections drift | Dispatch `InscrireUtilisateur` + `ConfirmerEmail` + `AttribuerRole` through `ICommandBus` (see § Seed administrateur) |
+| Hardcoding admin password in `appsettings.json` | Secret leaks via git history | Config holds email/pseudo only; password via `dotnet user-secrets` or env var `IdentitySeed__Password` |
 
 
 ---
