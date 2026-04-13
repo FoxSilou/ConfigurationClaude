@@ -340,6 +340,91 @@ Exemples existants : `EmailBox.razor`, `PasswordBox.razor`, `PseudonymeBox.razor
 
 ---
 
+### Notifications — Alerts globales
+
+Wrapper Radzen monté **une seule fois** dans `MainLayout.razor`. Affiche les Alerts déclenchées par les Presenters via le port `INotificationService`.
+
+```razor
+@using Radzen.Blazor
+
+<RadzenNotification />
+```
+
+Conventions :
+- **Nom** : `Notifications` (sans préfixe, cf. règle d'encapsulation)
+- Vit dans `Components/Kit/Notifications.razor`
+- Monté **une fois** dans `MainLayout.razor` (au-dessus de `@Body`)
+- Aucun `[Parameter]` — c'est un point d'ancrage Radzen
+
+#### Port `INotificationService` (UI.Domain)
+
+Les Presenters n'utilisent jamais le `NotificationService` Radzen directement. Ils dépendent du port :
+
+```csharp
+namespace [Namespace].Ports;
+
+public interface INotificationService
+{
+    void NotifierErreur(string message);
+    void NotifierSucces(string message);
+    void NotifierInfo(string message);
+}
+```
+
+#### Adapter Radzen (UI.Infrastructure)
+
+```csharp
+using Radzen;
+
+public sealed class RadzenNotificationService : INotificationService
+{
+    private readonly NotificationService _radzen;
+
+    public RadzenNotificationService(NotificationService radzen) => _radzen = radzen;
+
+    public void NotifierErreur(string message)
+        => _radzen.Notify(NotificationSeverity.Error, "Erreur", message, duration: 6000);
+
+    public void NotifierSucces(string message)
+        => _radzen.Notify(NotificationSeverity.Success, "Succès", message, duration: 4000);
+
+    public void NotifierInfo(string message)
+        => _radzen.Notify(NotificationSeverity.Info, "Info", message, duration: 4000);
+}
+```
+
+#### Enregistrement DI (composition root)
+
+```csharp
+builder.Services.AddScoped<NotificationService>();                  // Radzen
+builder.Services.AddScoped<INotificationService, RadzenNotificationService>();
+```
+
+`Scoped` (un par utilisateur en Blazor Server, un par circuit en WebAssembly).
+
+#### Usage depuis un Presenter
+
+Le Presenter injecte `INotificationService` et l'appelle dans ses `catch (ErreurMetierGateway)` / `catch (ErreurTechniqueGateway)`. Voir `gateway-error-handling.md` et skill `blazor-hexagonal` (template Presenter).
+
+#### Tests
+
+Pour les tests Presenter, fournir un `FakeNotificationService` qui capture les messages :
+
+```csharp
+public sealed class FakeNotificationService : INotificationService
+{
+    public string? DerniereErreur { get; private set; }
+    public string? DernierSucces { get; private set; }
+    public string? DernierInfo { get; private set; }
+
+    public void NotifierErreur(string message) => DerniereErreur = message;
+    public void NotifierSucces(string message) => DernierSucces = message;
+    public void NotifierInfo(string message) => DernierInfo = message;
+}
+```
+
+---
+
 ### DropDown — Liste déroulante
 
 ```razor

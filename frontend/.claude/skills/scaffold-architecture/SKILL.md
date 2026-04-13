@@ -48,6 +48,8 @@ La fleche de dependance va toujours vers le Domain : **Blazor -> Domain <- Infra
 - **Le Presenter est Scoped dans le DI** — ni Singleton (partage inter-utilisateurs) ni Transient (perte d'etat).
 - **`OnChanged` uniquement dans les methodes async** — pour signaler un etat intermediaire pendant un `await`. Les setters synchrones appeles via event handlers Blazor n'en ont pas besoin (Blazor re-rend automatiquement apres).
 - **Field Presenters pour les champs avec validation** — record immutable + type `Valide` imbrique + `Result<T>`. Voir skill `blazor-hexagonal` pour les templates.
+- **INotificationService enregistre Scoped** dans la composition root + `Notifications.razor` (wrapper Radzen) monte une fois dans `MainLayout`. Tous les Presenters standards injectent le port pour remonter erreurs / succes a l'utilisateur. Voir rule `gateway-error-handling.md` et skill `blazor-ui-kit` (section Notifications).
+- **Exceptions frontend typees** — `ErreurMetierGateway` et `ErreurTechniqueGateway` dans `UI.Domain/Exceptions/`. Helper `ApiExceptionTranslator` dans `UI.Infrastructure/Gateways/` traduit les `ApiException` NSwag en exceptions typees. Voir rule `gateway-error-handling.md`.
 
 ---
 

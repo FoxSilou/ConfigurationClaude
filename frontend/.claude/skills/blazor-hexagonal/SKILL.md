@@ -91,10 +91,12 @@ using [Namespace].Ports;
 public class [Feature]Presenter
 {
     private readonly I[Feature]Gateway _gateway;
+    private readonly INotificationService _notifications;
 
-    public [Feature]Presenter(I[Feature]Gateway gateway)
+    public [Feature]Presenter(I[Feature]Gateway gateway, INotificationService notifications)
     {
         _gateway = gateway;
+        _notifications = notifications;
     }
 
     // ── État observable ──
@@ -129,10 +131,17 @@ public class [Feature]Presenter
             // appel gateway...
             Etat = EtatChargement.Charge;
         }
-        catch (Exception ex)
+        catch (ErreurMetierGateway ex)
         {
             Etat = EtatChargement.EnErreur;
-            MessageErreur = $"Erreur : {ex.Message}";
+            MessageErreur = ex.Message;
+            _notifications.NotifierErreur(ex.Message);
+        }
+        catch (ErreurTechniqueGateway ex)
+        {
+            Etat = EtatChargement.EnErreur;
+            MessageErreur = ex.Message;
+            _notifications.NotifierErreur(ex.Message);
         }
 
         OnChanged?.Invoke(); // état final après l'await
@@ -186,9 +195,17 @@ public class Fake[Feature]Gateway : I[Feature]Gateway
         return this;
     }
 
-    public Fake[Feature]Gateway QuiEchoue(string message = "Erreur réseau")
+    public Fake[Feature]Gateway QuiEchoueMetier(string message)
     {
-        _exception = new HttpRequestException(message);
+        _exception = new ErreurMetierGateway(message);
+        return this;
+    }
+
+    public Fake[Feature]Gateway QuiEchoueTechnique()
+    {
+        _exception = new ErreurTechniqueGateway(
+            "Une erreur technique est survenue. Réessayez plus tard.",
+            new Exception("simulée"));
         return this;
     }
 
@@ -203,9 +220,13 @@ public class Fake[Feature]Gateway : I[Feature]Gateway
 ```
 
 Principes du Fake :
-- API fluide en français : `AvecXxx(...)`, `QuiEchoueXxx(...)`, `SansResultat()`
+- API fluide en français : `AvecXxx(...)`, `QuiEchoueMetier(msg)`, `QuiEchoueTechnique()`
 - Retourne `Task.FromResult` pour garder les tests synchrones et ultra-rapides
 - Un Fake par Gateway, placé dans `Tests/Presenters/Fakes/`
+
+### Erreurs Gateway — chaîne de remontée
+
+Le Gateway attrape `ApiException` (NSwag) et appelle `ApiExceptionTranslator.Traduire(ex)` pour obtenir une `ErreurMetierGateway` (400 + Problem Details) ou `ErreurTechniqueGateway` (tout le reste). Le Presenter attrape ces deux types, met l'état à `EnErreur` et déclenche une Alert via `INotificationService`. Voir la rule `gateway-error-handling.md` pour le contrat complet et le template `ApiExceptionTranslator`. Voir skill `blazor-ui-kit` pour le port `INotificationService` et son adapter Radzen.
 
 ### Template Composant .razor
 
@@ -494,6 +515,8 @@ public interface IInscriptionGateway
 ```
 
 ### Type Result<T>
+
+**Périmètre** : `Result<T>` est utilisé **exclusivement** par les Field Presenters pour la validation synchrone d'un champ (factory `Valide.Creer(...)`). Il n'apparaît jamais dans les signatures de Gateways, ni dans les appels inter-couches. Les Presenters standards signalent leurs erreurs via l'état `EnErreur` + `INotificationService` (cf. `gateway-error-handling.md`).
 
 Le type `Result<T>` est défini dans `UI.Domain/Result.cs` :
 

@@ -239,10 +239,12 @@ Create the frontend project structure following the hexagonal architecture.
    - `UI.Domain.csproj`
    - `Presenters/` directory
    - `Presenters/Commun/EtatChargement.cs` — shared enum (`Inactif`, `EnCours`, `Charge`, `EnErreur`)
-   - `Ports/` directory
+   - `Ports/` directory — includes `INotificationService.cs`
+   - `Exceptions/` directory — includes `ErreurMetierGateway.cs` and `ErreurTechniqueGateway.cs` (see rule `gateway-error-handling.md`)
 3. Create the UI.Infrastructure project:
    - `UI.Infrastructure.csproj` — references UI.Domain
-   - `Gateways/` directory
+   - `Gateways/` directory — includes `ApiExceptionTranslator.cs` (see rule `gateway-error-handling.md`)
+   - `Notifications/RadzenNotificationService.cs` — adapter for `INotificationService` (see skill `blazor-ui-kit`)
 4. Set up the Blazor project directory structure:
    ```
    UI.Blazor/
@@ -259,7 +261,7 @@ Create the frontend project structure following the hexagonal architecture.
    - Wrap in a `<nav>` element
    - Add a `<NavLink>` for the home page (`/`)
    - Each `<NavLink>` must have a `data-testid` attribute (e.g. `data-testid="nav-accueil"`)
-7. Update `MainLayout.razor` to include `<NavMenu />` in the layout (e.g. inside a `<RadzenSidebar>` or before the body content).
+7. Update `MainLayout.razor` to include `<NavMenu />` in the layout (e.g. inside a `<RadzenSidebar>` or before the body content). Also include `<Notifications />` (wrapper Kit, cf. skill `blazor-ui-kit`) exactly once — it is the global Alert anchor driven by `INotificationService`.
 8. Create `Components/Kit/_Imports.razor` with `@using Radzen` and `@using Radzen.Blazor`.
 9. Ensure the root `_Imports.razor` does NOT contain `@using Radzen`.
 10. Add project references:
@@ -358,6 +360,11 @@ If the NSwag client infrastructure does not exist yet:
   builder.Services.AddScoped<IImperiumRexApiClient>(sp =>
       new ImperiumRexApiClient(sp.GetRequiredService<HttpClient>()));
   ```
+- Register the notification service chain (Radzen + port adapter):
+  ```csharp
+  builder.Services.AddScoped<Radzen.NotificationService>();
+  builder.Services.AddScoped<INotificationService, RadzenNotificationService>();
+  ```
 
 The NSwag client generates typed methods (e.g., `InscrireUtilisateurAsync`, `ObtenirUtilisateurAsync`) from the backend OpenAPI spec. Gateway implementations use this client instead of raw `HttpClient` calls.
 
@@ -445,13 +452,15 @@ For each gateway port:
       private Exception? _exception;
 
       public Fake[Feature]Gateway AvecDonnees(params [Model][] donnees) { ... }
-      public Fake[Feature]Gateway QuiEchoue(string message = "Erreur reseau") { ... }
+      public Fake[Feature]Gateway QuiEchoueMetier(string message) { ... }      // ErreurMetierGateway
+      public Fake[Feature]Gateway QuiEchoueTechnique() { ... }                  // ErreurTechniqueGateway
 
       public Task<IReadOnlyList<[Model]>> RecupererTousAsync() { ... }
   }
   ```
 - Follow the `blazor-hexagonal` skill Fake Gateway template
-- Fluent API in French: `AvecXxx(...)`, `QuiEchoueXxx(...)`, `SansResultat()`
+- Fluent API in French: `AvecXxx(...)`, `QuiEchoueMetier(msg)`, `QuiEchoueTechnique()`
+- Also provide a `FakeNotificationService` in `Fakes/` capturing `DerniereErreur` / `DernierSucces` / `DernierInfo` (see `blazor-ui-kit`)
 
 #### 3. bUnit Smoke Test (optional — for component-level testing)
 
@@ -825,8 +834,8 @@ Create test doubles and a smoke test for this feature area.
 
 1. Create `Fake[Feature]Gateway` in `tests/UI.Domain.Tests/Presenters/Fakes/`:
    - Follow the `blazor-hexagonal` skill Fake Gateway template
-   - Fluent API: `AvecDonnees(...)`, `QuiEchoue(...)`, `SansResultat()`
-   - Covers nominal case and error case
+   - Fluent API: `AvecDonnees(...)`, `QuiEchoueMetier(msg)`, `QuiEchoueTechnique()`
+   - Covers nominal case, erreur metier (DomainException backend), erreur technique (reseau / 500)
 
 2. Create a Presenter smoke test in `tests/UI.Domain.Tests/Presenters/[Feature]/`:
    ```csharp
@@ -837,7 +846,8 @@ Create test doubles and a smoke test for this feature area.
        {
            // Arrange
            var gateway = new Fake[Feature]Gateway().AvecDonnees(...);
-           var presenter = new [Feature]Presenter(gateway);
+           var notifications = new FakeNotificationService();
+           var presenter = new [Feature]Presenter(gateway, notifications);
 
            // Act
            await presenter.ChargerAsync();
@@ -847,18 +857,20 @@ Create test doubles and a smoke test for this feature area.
        }
 
        [Fact]
-       public async Task Charger_doit_passer_en_erreur_quand_gateway_echoue()
+       public async Task Charger_doit_notifier_le_message_metier_quand_gateway_echoue_metier()
        {
            // Arrange
-           var gateway = new Fake[Feature]Gateway().QuiEchoue();
-           var presenter = new [Feature]Presenter(gateway);
+           var gateway = new Fake[Feature]Gateway().QuiEchoueMetier("Ce joueur est deja inscrit.");
+           var notifications = new FakeNotificationService();
+           var presenter = new [Feature]Presenter(gateway, notifications);
 
            // Act
            await presenter.ChargerAsync();
 
            // Assert
            presenter.Etat.Should().Be(EtatChargement.EnErreur);
-           presenter.MessageErreur.Should().NotBeNullOrEmpty();
+           presenter.MessageErreur.Should().Be("Ce joueur est deja inscrit.");
+           notifications.DerniereErreur.Should().Be("Ce joueur est deja inscrit.");
        }
    }
    ```

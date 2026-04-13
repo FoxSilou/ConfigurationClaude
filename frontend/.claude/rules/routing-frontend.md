@@ -28,7 +28,7 @@ La régénération est automatique au build du frontend si `Api.json` existe. Un
 - Les Gateways (`UI.Infrastructure/Gateways/`) injectent `IImperiumRexApiClient` (ou nom équivalent du client NSwag) via constructeur.
 - Les appels passent par les méthodes typées générées (ex. `client.InscrireUtilisateurAsync(...)`).
 - Les DTOs proviennent du namespace généré (`ApiClient/`), ou sont mappés vers les types du `UI.Domain` dans le Gateway.
-- Le Gateway attrape `ApiException` et la transforme en `Result<T>` ou état d'erreur pour le Presenter.
+- Le Gateway attrape `ApiException` et la traduit via `ApiExceptionTranslator` en `ErreurMetierGateway` (400 + Problem Details) ou `ErreurTechniqueGateway` (tout le reste) que le Presenter attrape. Voir `gateway-error-handling.md`. Aucune utilisation de `Result<T>` côté Gateway — `Result<T>` est réservé aux Field Presenters.
 
 ## Si un endpoint manque côté frontend
 

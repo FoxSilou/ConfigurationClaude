@@ -198,12 +198,13 @@ No user gates during TDD. Run the full cycle (RED -> GREEN -> REFACTOR) for ever
 ### TDD Rules
 
 - **One test at a time.** Never write two tests before making the first green.
-- **Fake Gateway, not Mock.** Use the Fake pattern with fluent configuration API (`AvecDonnees(...)`, `QuiEchoue(...)`).
+- **Fake Gateway, not Mock.** Use the Fake pattern with fluent configuration API (`AvecDonnees(...)`, `QuiEchoueMetier(msg)`, `QuiEchoueTechnique()`). Pair with `FakeNotificationService` for tests that assert Alert notifications.
 - **Test the Presenter, not the component.** Tests instantiate the Presenter directly with a Fake Gateway.
 - **French naming.** Test methods: `Action_doit_resultat_quand_contexte`. Properties and methods in French.
 - **EtatChargement enum.** Reuse `Inactif`, `EnCours`, `Charge`, `EnErreur` for loading states.
 - **OnChanged event.** The Presenter notifies UI changes via `event Action? OnChanged`. Only invoke `OnChanged` in async methods for intermediate states during an `await`. Synchronous setters called via Blazor event handlers do NOT need `OnChanged` — Blazor re-renders automatically after.
-- **Field Presenters.** When a form field has validation (email, password, etc.), create a dedicated Field Presenter (immutable record + nested `Valide` type + `Result<T>`). The Gateway receives `Valide` types — impossible to pass unvalidated values. See skill `blazor-hexagonal` for templates.
+- **Field Presenters.** When a form field has validation (email, password, etc.), create a dedicated Field Presenter (immutable record + nested `Valide` type + `Result<T>`). The Gateway receives `Valide` types — impossible to pass unvalidated values. See skill `blazor-hexagonal` for templates. **`Result<T>` est reserve aux Field Presenters** — jamais dans les signatures de Gateway.
+- **Erreurs Gateway.** Le Presenter standard injecte `INotificationService` et attrape explicitement `ErreurMetierGateway` (message backend user-friendly) et `ErreurTechniqueGateway` (message generique). Pas de `catch (Exception)`. Voir rule `gateway-error-handling.md` et skill `blazor-ui-kit` (Notifications).
 - **AAA comments mandatory.** Every test method MUST contain `// Arrange`, `// Act`, `// Assert` comments. No exceptions.
 
 ### Gate -- End of PHASE 1
@@ -281,7 +282,7 @@ If the endpoints exist but the NSwag client doesn't have the corresponding metho
 ### Rules
 
 - The Gateway delegates to the NSwag-generated client -- no manual URL construction, no raw `HttpClient` calls
-- Error handling: the NSwag client throws `ApiException` on non-success status; the Presenter catches and sets error state
+- Error handling: the Gateway catches `ApiException` and rethrows via `ApiExceptionTranslator.Traduire(ex)` → `ErreurMetierGateway` (400 + Problem Details `detail`) or `ErreurTechniqueGateway` (everything else). The Presenter catches both types, sets `Etat = EnErreur` and triggers an Alert via `INotificationService`. See rule `gateway-error-handling.md`.
 - No retry logic in the Gateway (that's infrastructure concern for later)
 
 ### Done -- Frontend Feature Complete
