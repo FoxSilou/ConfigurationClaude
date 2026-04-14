@@ -82,7 +82,7 @@ FEATURE FRONTEND COMPLETE
 ## PHASE -1 -- PREREQUIS BACKEND
 
 ### Goal
-Garantir que la partie backend de l'US est livree avant d'engager le moindre travail frontend. Une US frontend ne s'implemente que sur un backend deja vert.
+Garantir que la partie backend de l'US est livree avant d'engager le moindre travail frontend. Une US frontend ne s'implemente que sur un backend deja vert. **Au passage** : lire aussi le `story-map.md` frere et les bilans des etapes precedentes dans `progression.md` pour recuperer le contexte projet (nom, TFM, decisions deja prises) — ne jamais redemander a l'utilisateur un element qui y figure deja. Le bilan final a ecrire en fin d'etape dans `progression.md` doit tenir en ≤ 20 lignes (Livre / Build & tests / Points de vigilance — details dans les commits git).
 
 ### Steps
 

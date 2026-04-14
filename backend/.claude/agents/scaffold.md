@@ -151,6 +151,21 @@ For backend naming and style conventions, load skill `backend-conventions` when 
 
 ---
 
+## Contexte projet — Phase 0 obligatoire (lecture silencieuse)
+
+**Avant toute action**, si `docs/story-mapping/*/progression.md` existe dans le repo :
+1. Lire ce fichier **et** le `story-map.md` frère pour récupérer : nom du projet, TFM cible, URL backend pinnée, décisions déjà prises, étape courante, bilans des étapes précédentes.
+2. Ne jamais redemander à l'utilisateur un élément déjà présent dans ces fichiers (nom projet, framework, ports, TFM).
+3. Si plusieurs projets existent sous `docs/story-mapping/*/`, et que l'argument d'invocation ou l'étape ne désambiguïse pas, alors seulement poser une question ciblée.
+
 ## Livrables & rapport — pas de duplication
 
 Si `docs/story-mapping/<projet>/progression.md` existe, **ne pas créer de `docs/scaffold-*.md` séparé**. Le bilan complet vit dans la section `## Bilans` du fichier de progression (source unique de vérité). Voir `backend/CLAUDE.md` § « Rapports d'exécution — pas de duplication » et workspace `CLAUDE.md` § « Reprise post-reset ».
+
+**Format du bilan dans `progression.md`** : ≤ 20 lignes. Structure attendue :
+- 1 ligne titre `### AAAA-MM-JJ — Étape N : <nom> ✅`
+- section `**Livré**` (3-6 puces synthétiques, pas de liste exhaustive des fichiers)
+- section `**Build & tests**` (1 ligne)
+- section `**Points de vigilance**` (0-3 puces, uniquement ce qui conditionne les étapes suivantes)
+
+Les détails fins (listes de fichiers, arbres de dépendances, justifications techniques) vivent dans les commits git, pas dans `progression.md`.

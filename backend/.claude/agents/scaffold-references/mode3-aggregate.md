@@ -267,7 +267,7 @@ Wire the new aggregate into the DI container and create API endpoints.
 1. **Modify Write `ServiceCollectionExtensions.cs`** (`<BC>.Write.Infrastructure/ServiceCollectionExtensions.cs`):
    - Add `services.AddScoped<I<Aggregate>Repository, EventSourced<Aggregate>Repository>()`
    - Add `services.AddScoped<IStateRebuilder<<Aggregate>, <Aggregate>Id>, <Aggregate>StateRebuilder>()`
-   - Register type alias in `EventSerializer`: `serializer.RegisterTypeAlias("<Aggregate>Cree", nameof(<Aggregate>CreePayload))`
+   - **Pas d'appel `serializer.RegisterTypeAlias(...)`** : `EventSerializer` auto-découvre les payloads par `type.Name` via les assemblies passés à `AddEventSourcing(...)` (Mode 1 / Mode 2). Le payload est résolu automatiquement dès que le projet `<BC>.Write.Infrastructure` est référencé.
 
 2. **Modify Read `ServiceCollectionExtensions.cs`** (`<BC>.Read.Infrastructure/ServiceCollectionExtensions.cs`):
    - Add `services.AddScoped<I<Aggregate>ReadRepository, EfCore<Aggregate>ReadRepository>()`

@@ -121,6 +121,7 @@ Inventory what exists and what is missing in the frontend foundation.
 
 ### Steps
 
+0. **Contexte projet (obligatoire, silencieux)** : si `docs/story-mapping/*/progression.md` existe, le lire + le `story-map.md` frère. Récupérer : nom du projet (= namespace racine), TFM, URL backend pinnée, état du scaffold backend (pour savoir si `backend/Api.json` existe), décisions architecturales déjà prises. **Ne jamais redemander à l'utilisateur un élément qui y figure déjà** (nom projet, framework Blazor WASM/Server/MAUI si tranché, TFM, ports). Ne poser de question que si l'ambiguïté persiste après lecture.
 1. Read the current frontend solution structure (all `.csproj` files, folder structure).
 2. Check for each concern:
 

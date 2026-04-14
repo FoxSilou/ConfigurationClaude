@@ -83,6 +83,7 @@ Understand the full scope of the feature before writing a single line of code or
 
 ### Steps
 
+0. **Contexte projet (obligatoire, silencieux)** : si `docs/story-mapping/*/progression.md` existe, le lire + lire le `story-map.md` frère pour récupérer nom projet, TFM, décisions prises, bilans des étapes précédentes. Ne jamais redemander un élément qui y figure déjà. Le bilan final à écrire dans `progression.md` doit tenir en ≤ 20 lignes (Livré / Build & tests / Points de vigilance — détails dans les commits git).
 1. Read the feature requirement carefully.
 2. Identify:
    - The **Commands and/or Queries** involved

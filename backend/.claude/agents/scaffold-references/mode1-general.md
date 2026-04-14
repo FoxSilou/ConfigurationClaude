@@ -307,6 +307,8 @@ Create the API project with composition root, error middleware, and health endpo
    - `public partial class Program;` at end for E2E test access
    - Register `AddEventSourcing(connectionString, domainAssemblies)` for the SQL event store
    - Register `AddReadDbContext(connectionString, readInfraAssemblies)` for the shared ReadDbContext
+   - Register `AddWriteMessaging(typeof(Program).Assembly)` — required so command dispatch works as soon as a BC is added. **Ne pas oublier** : omettre cet appel casse le dispatch dès la première commande.
+   - Register `AddReadMessaging(typeof(Program).Assembly)` — required so query dispatch works as soon as a BC is added. **Ne pas oublier** : omettre cet appel casse `ObtenirXxx` dès la première query.
    - Connection strings read from `builder.Configuration.GetConnectionString("Write")` and `GetConnectionString("Read")`
 3. Create `appsettings.Development.json` with connection strings:
    ```json
@@ -417,7 +419,7 @@ Shared.Read.Infrastructure:
 - MediatR NEVER referenced in Domain or Application ✅
 
 API shell:
-- Program.cs with TimeProvider, AddEventSourcing(), AddReadDbContext(), health endpoint, CORS, error middleware
+- Program.cs with TimeProvider, AddEventSourcing(), AddReadDbContext(), AddWriteMessaging(), AddReadMessaging(), health endpoint, CORS, error middleware
 - Connection strings in appsettings.Development.json (Write + Read)
 - Problem Details (RFC 7807) for domain exceptions + ConcurrencyException
 - OpenAPI: AddOpenApi() + MapOpenApi() + Api.json generated at backend root via ApiDescription.Server
