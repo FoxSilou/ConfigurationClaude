@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mv Frontend.PlaywrightTests UI.PlaywrightTests)",
+      "Bash(mv UI.PlaywrightTests/Frontend.PlaywrightTests.csproj UI.PlaywrightTests/UI.PlaywrightTests.csproj)"
+    ]
+  }
+}

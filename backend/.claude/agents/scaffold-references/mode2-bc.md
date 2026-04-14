@@ -126,6 +126,8 @@ Create the persistence layer and port implementations for this bounded context.
 
 #### 1. Identity Setup (if Identité bounded context)
 
+**⚠️ Non-interactif** — si le nom du BC est `Identite` (ou variante `Identity`), appliquer **intégralement** le pattern défini dans `identity-framework.md` : ASP.NET Identity + JWT + lockout + rate limiting + `AdministrateurSeeder` stubbé `NotImplementedException` + projections Identity/email + ports sécurité (`IPasswordHasher`, `ITokenGenerator`, `IUtilisateurAuthReader`, `ILoginAttemptTracker`, `ICurrentUserAccessor`, `IEmailSender`). **Ne pas demander à l'utilisateur « full vs minimal »** — la rule prescrit le pattern complet sans option. La seule situation où l'Identity Setup est sauté : `identity-framework.md` volontairement hors scope du projet (aucune feature auth dans le story-map) — auquel cas l'utilisateur doit l'avoir explicité avant.
+
 If the bounded context involves user authentication, follow rule `identity-framework.md` for the full hybrid Identity pattern. Key steps:
 
 - Create `ApplicationUser`, `AppIdentityDbContext`, `IdentityDataSeeder` (infra layer, shares Read DB)

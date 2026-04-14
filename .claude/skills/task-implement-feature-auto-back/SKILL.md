@@ -1,6 +1,6 @@
 ---
 name: task-implement-feature-auto-back
-description: Use when the user asks to implement a backend feature end-to-end without step-by-step gates and wants a single review at the end. Also triggers on mentions of autonomous TDD, hands-off implementation, or "run the whole feature and show me the result".
+description: Use when the user asks to implement a backend feature end-to-end without step-by-step RED/GREEN/REFACTOR gates. Mode autonome = 2 gates utilisateur obligatoires (validation du périmètre en fin de Phase 0 ANALYSE + revue finale après livraison), pas de gate intermédiaire sur chaque cycle TDD. Triggers aussi sur mentions de TDD autonome, hands-off implementation, "run the whole feature and show me the result".
 user-invocable: true
 argument-hint: "<feature description or .feature file>"
 context: fork

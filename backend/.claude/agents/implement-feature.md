@@ -103,7 +103,7 @@ Understand the full scope of the feature before writing a single line of code or
 
 ### Analysis Document
 
-Save to: `docs/<feature-name>.md`
+Save to: `docs/story-mapping/<projet>/analyses/<feature-slug>.md` (créer le dossier `analyses/` si absent). `<projet>` = nom du projet matérialisé (ex. `imperium-rex`), `<feature-slug>` = slug kebab-case (ex. `inscrire-utilisateur`). **Ne jamais écrire à la racine `docs/`** : cette convention co-localise l'analyse avec `progression.md`, `story-map.md` et les fichiers BDD du projet.
 
 ```markdown
 # Feature: <feature name>
@@ -155,14 +155,14 @@ Each E2E test follows: POST (command) → GET (query) → assert on read model.
 ⛔ **GATE: Stop after producing the analysis document.**
 
 Present a summary to the user:
-- Document saved at `docs/<feature-name>.md`
+- Document saved at `docs/story-mapping/<projet>/analyses/<feature-slug>.md`
 - Number of tests planned
 - Proposed critical paths for E2E
 - **E2E verification strategy** — for each critical path, state the POST and GET endpoints
 - **⚠️ If any read side is missing** (no Query, no read model, no GET endpoint defined in the specs): present the proposed minimal read model and explicitly ask the user to confirm or adjust it before proceeding
 
 Ask:
-> *"Analysis complete. Please review `docs/<feature-name>.md`. Confirm to start TDD, or provide feedback to adjust the analysis."*
+> *"Analysis complete. Please review `docs/story-mapping/<projet>/analyses/<feature-slug>.md`. Confirm to start TDD, or provide feedback to adjust the analysis."*
 
 Wait for explicit user confirmation before proceeding to PHASE 1.
 

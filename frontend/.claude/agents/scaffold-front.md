@@ -95,19 +95,21 @@ Use this mode when no specific feature area is provided.
 
 ```
 PHASE 0 — DIAGNOSTIC
-  ↓ (user gate)
+  ↓
 PHASE 1 — PROJECT STRUCTURE (solution, projects, directory layout)
-  ↓ (user gate)
+  ↓
 PHASE 2 — UI KIT (wrapper components, _Imports.razor)
-  ↓ (user gate)
+  ↓
 PHASE 3 — SERVICE LAYER (gateway ports, HTTP implementations, DI)
-  ↓ (user gate)
+  ↓
 PHASE 4 — TEST HARNESS (bUnit project, Playwright project, fixtures, smoke test)
-  ↓ (user gate)
+  ↓
 SMOKE TEST — everything compiles, tests pass
   ↓
 GENERAL SCAFFOLD COMPLETE ✅
 ```
+
+Mode autonome : le scaffold général enchaîne les 5 phases sans gate utilisateur. Une seule revue finale. Si une phase échoue (build rouge, test rouge), **stopper** et remonter à l'utilisateur avant de poursuivre.
 
 ---
 
@@ -141,14 +143,22 @@ Inventory what exists and what is missing in the frontend foundation.
 | **DI registration** | Are services registered in `Program.cs`? | `Program.cs` |
 | **Error boundary** | Is there a global error boundary? | Root |
 | **bUnit test project** | Does it exist with proper references? | `tests/UI.Domain.Tests/` |
-| **Playwright test project** | Does it exist with configuration? | `tests/Frontend.PlaywrightTests/` |
+| **Playwright test project** | Does it exist with configuration? | `tests/UI.PlaywrightTests/` |
 | **Test fakes** | Do Fake Gateways exist? | `tests/UI.Domain.Tests/Presenters/Fakes/` |
+| **TFM alignment** | Lire le TFM backend (`backend/**/*.csproj`, `Directory.Build.props`) et comparer à la cible frontend envisagée. | Backend csproj racine |
+| **OpenAPI spec backend** | `backend/Api.json` existe-t-il ? Si non, noter la cause probable (ApiDescription désactivé, jamais buildé). | `backend/Api.json` |
+
+**Règles de blocage** :
+- **TFM** : si le TFM backend est `netX.0`, viser **le même TFM** côté frontend tant que les SDK Blazor WASM / MAUI le supportent. En cas d'incompatibilité connue (ex. Blazor WASM 9 vs backend 10), **bloquer et remonter à l'utilisateur** les deux options (downgrade backend ou accepter le décalage). Ne jamais choisir silencieusement.
+- **Api.json** : son absence rend la target NSwag de PHASE 3 inerte. Ce manque doit apparaître explicitement dans la section « Points de vigilance » du bilan final — jamais sous forme de note ignorable.
 
 3. Produce the diagnostic document.
 
 ### Diagnostic Document
 
-Save to: `docs/scaffold-frontend-<date>.md`
+Si `docs/story-mapping/<projet>/progression.md` existe, **ne pas créer de `docs/scaffold-frontend-*.md` séparé**. Le diagnostic et le bilan final vivent dans la section `## Bilans` du fichier de progression (source unique de vérité). Voir workspace `CLAUDE.md` § « Reprise post-reset ».
+
+Sinon, sauvegarder sous : `docs/scaffold-frontend-<date>.md`
 
 ```markdown
 # Scaffold Diagnostic: Frontend
@@ -208,19 +218,9 @@ Save to: `docs/scaffold-frontend-<date>.md`
 4. <what to create — phase 4>
 ```
 
-### Gate — End of PHASE 0
+### End of PHASE 0
 
-⛔ **GATE: Stop after producing the diagnostic document.**
-
-Present a summary to the user:
-- Document saved at `docs/scaffold-frontend-<date>.md`
-- What exists vs what is missing
-- Proposed work plan
-
-Ask:
-> *"Diagnostic termine. Voici ce qui manque : [resume]. Le plan de travail vous convient-il ? Confirmez pour commencer, ou ajustez."*
-
-Wait for explicit user confirmation before proceeding to PHASE 1.
+Document saved. Enchaîner immédiatement sur PHASE 1 (pas de gate utilisateur).
 
 ---
 
@@ -234,7 +234,9 @@ Create the frontend project structure following the hexagonal architecture.
 
 1. Create the Blazor project if it does not exist:
    - Add `<WasmDebugging>true</WasmDebugging>` in the `<PropertyGroup>` of the `.csproj` to enable WebAssembly debugging
-   - Create `wwwroot/appsettings.json` with `ApiBaseUrl` pointing to the backend dev URL (e.g. `{"ApiBaseUrl": "https://localhost:7147"}`)
+   - Overwrite `Properties/launchSettings.json` to pin dev ports : `"applicationUrl": "https://localhost:5101;http://localhost:5100"` (ne pas conserver les ports aléatoires de `dotnet new`).
+   - Create `wwwroot/appsettings.json` with the pinned backend URL : `{"ApiBaseUrl": "https://localhost:5001"}`.
+   - **Contrat de ports dev partagé** : backend `5001/5000`, frontend `5101/5100`. Symétrique avec `backend/.claude/agents/scaffold-references/mode1-general.md` (PHASE 3 launchSettings + `Cors:Origins`). Ne pas changer un côté sans synchroniser l'autre — sinon `ERR_CONNECTION_REFUSED` ou rejet CORS.
 2. Create the UI.Domain project (pure C# class library — **zero Blazor dependency**):
    - `UI.Domain.csproj`
    - `Presenters/` directory
@@ -273,18 +275,9 @@ Create the frontend project structure following the hexagonal architecture.
 
 Run `dotnet build` — must compile.
 
-### Gate — End of PHASE 1
+### End of PHASE 1
 
-⛔ **GATE: Stop after creating the project structure.**
-
-Present:
-- Projects created (list with paths)
-- Directory layout
-- Dependency graph (Domain <- Infrastructure, Domain <- Blazor)
-- Build status ✅
-
-Ask:
-> *"Structure de projets creee. UI.Domain est C# pur sans dependance Blazor. Tout compile. Confirmez pour passer au UI Kit."*
+Vérifier `dotnet build` vert puis enchaîner sur PHASE 2 (pas de gate utilisateur).
 
 ---
 
@@ -321,17 +314,9 @@ Et binder sur l'élément Radzen racine : `@attributes="AttributsSupplementaires
 
 Run `dotnet build` — must compile.
 
-### Gate — End of PHASE 2
+### End of PHASE 2
 
-⛔ **GATE: Stop after creating the UI Kit.**
-
-Present:
-- Wrappers created (list with paths)
-- Each wrapper's exposed Parameters
-- Build status ✅
-
-Ask:
-> *"UI Kit cree avec les wrappers de base. @using Radzen confine dans Components/Kit/. Tout compile. Confirmez pour passer a la couche services."*
+Vérifier `dotnet build` vert puis enchaîner sur PHASE 3 (pas de gate utilisateur).
 
 ---
 
@@ -407,19 +392,9 @@ For each backend API endpoint that the frontend needs:
 
 Run `dotnet build` — must compile.
 
-### Gate — End of PHASE 3
+### End of PHASE 3
 
-⛔ **GATE: Stop after creating the service layer.**
-
-Present:
-- Ports created (list)
-- Gateway implementations created (list)
-- Presenter shells created (list)
-- DI registrations
-- Build status ✅
-
-Ask:
-> *"Couche services creee. Ports, Gateways HTTP, et Presenters enregistres dans le DI. Tout compile. Confirmez pour creer le harness de tests."*
+Vérifier `dotnet build` vert puis enchaîner sur PHASE 4 (pas de gate utilisateur).
 
 ---
 
@@ -465,7 +440,7 @@ For each gateway port:
 #### 3. bUnit Smoke Test (optional — for component-level testing)
 
 If Blazor component testing is needed later:
-- Create `tests/Frontend.bUnitTests/Frontend.bUnitTests.csproj`
+- Create `tests/UI.bUnitTests/UI.bUnitTests.csproj`
   - Reference UI.Blazor
   - Add packages: `bunit`, `FluentAssertions`, `xunit`
 - Create a minimal smoke test:
@@ -481,10 +456,18 @@ If Blazor component testing is needed later:
 #### 4. Playwright Test Project
 
 If it does not exist:
-- Create `tests/Frontend.PlaywrightTests/Frontend.PlaywrightTests.csproj`
-  - Add packages: `Microsoft.Playwright`, `FluentAssertions`, `xunit`
+- Create `tests/UI.PlaywrightTests/UI.PlaywrightTests.csproj`
+  - Add packages: `Microsoft.Playwright`, `Microsoft.Playwright.Xunit`, `FluentAssertions`, `xunit`, `Testcontainers` (DB selon stack backend, ex. `Testcontainers.PostgreSql`)
 - Create `playwright.config.json` with base URL
+- Create `Features/` directory for per-US E2E tests (golden path)
 - Create `Bugs/` directory for bug reproduction tests
+- Create `Fixtures/AppFixture.cs` — `IAsyncLifetime` qui :
+  - démarre la DB éphémère via Testcontainers (ou SQLite temp si stack le supporte) ;
+  - démarre backend (`dotnet run --project ...WebApi`) en process enfant pointant sur la DB ;
+  - démarre frontend (`dotnet run --project ...Blazor`) en process enfant pointant sur le backend ;
+  - expose `BaseUrlFront` / `BaseUrlBack` ;
+  - tear-down complet (kill processes + dispose container).
+- Déclarer `[CollectionDefinition("AppFixture")]` partagée pour mutualiser le démarrage entre tests.
 
 #### 5. Presenter Smoke Test
 
@@ -510,22 +493,15 @@ public async Task Presenter_doit_charger_les_donnees_au_demarrage()
 
 Run `dotnet test` — all tests must pass.
 
-### Gate — End of PHASE 4
+### End of PHASE 4
 
-⛔ **GATE: Stop after tests pass.**
-
-Present:
-- Test projects created (list with paths)
-- Fake Gateways created (list)
-- Smoke test status ✅
-- All tests status ✅
-
-Ask:
-> *"Harness de tests en place. Le smoke test Presenter passe. Le scaffolding general frontend est termine. Vous pouvez maintenant implementer les features."*
+`dotnet test` vert. Produire le rapport final (section suivante) et restituer à l'utilisateur pour revue unique.
 
 ---
 
 ## General Scaffold — Final Report
+
+Si `docs/story-mapping/<projet>/progression.md` existe, **enrichir sa section `## Bilans`** — ne pas produire de fichier `docs/scaffold-frontend-*.md` séparé. Sinon, consigner le rapport ci-dessous dans la conversation / un doc ad hoc.
 
 ```
 Frontend General Scaffold complete ✅
@@ -547,7 +523,7 @@ Service layer:
 
 Test harness:
 - UI.Domain.Tests/: Presenter tests + Fake Gateways ✅
-- Frontend.PlaywrightTests/: structure ready ✅
+- UI.PlaywrightTests/: structure ready (Features/, Bugs/, Fixtures/AppFixture) ✅
 - Smoke test: green ✅
 ```
 
@@ -565,19 +541,21 @@ Use this mode when a specific feature area is provided (e.g., `@scaffold-front l
 
 ```
 PHASE 0 — DIAGNOSTIC
-  ↓ (user gate)
+  ↓
 PHASE 1 — PRESENTER + PORT (UI.Domain)
-  ↓ (user gate)
+  ↓
 PHASE 2 — GATEWAY (UI.Infrastructure)
-  ↓ (user gate)
+  ↓
 PHASE 3 — PAGE + COMPONENTS (UI.Blazor)
-  ↓ (user gate)
+  ↓
 PHASE 4 — TEST FAKES + SMOKE TEST
-  ↓ (user gate)
+  ↓
 SMOKE TEST — everything compiles, existing tests pass
   ↓
 FEATURE SCAFFOLD COMPLETE ✅
 ```
+
+Mode autonome : le scaffold d'une feature area enchaîne les 5 phases sans gate utilisateur. Une seule revue finale. Si une phase échoue (build rouge, test rouge), **stopper** et remonter à l'utilisateur avant de poursuivre.
 
 ---
 
@@ -595,6 +573,7 @@ Inventory what exists and what is missing for this feature area.
    - Which backend API endpoints does it consume?
    - What data does it display?
    - What actions can the user perform?
+   - **La feature contient-elle un formulaire avec champs validés ?** Si oui, lister les champs (ex: email, mot de passe, pseudonyme). Chaque champ listé → un Field Presenter à scaffolder en PHASE 1 (étape 3 bis).
 4. Check for existing infrastructure:
 
 | Concern | What to check | Location |
@@ -603,6 +582,8 @@ Inventory what exists and what is missing for this feature area.
 | **Gateway implementation** | Does `Http[Feature]Gateway` exist? | `UI.Infrastructure/Gateways/` |
 | **DTOs** | Do the response/request models exist? | `UI.Domain/` or `Models/` |
 | **Presenter** | Does `[Feature]Presenter` exist? | `UI.Domain/Presenters/[Feature]/` |
+| **Field Presenters** | Si formulaire : `[Champ]Presenter` + classe `Valide` existent-ils ? | `UI.Domain/Presenters/[Feature]/Champs/` |
+| **Type `Result<T>`** | Le type partagé existe-t-il ? | `UI.Domain/Commun/Result.cs` |
 | **Page** | Does the routable page exist? | `Pages/` |
 | **Components** | Do feature-specific components exist? | `Components/Shared/` |
 | **NavMenu entry** | Does NavMenu have a link to this feature's page? | `Layout/NavMenu.razor` |
@@ -613,7 +594,7 @@ Inventory what exists and what is missing for this feature area.
 
 ### Diagnostic Document
 
-Save to: `docs/scaffold-frontend-<feature>-<date>.md`
+Si `docs/story-mapping/<projet>/progression.md` existe, **ne pas créer de `docs/scaffold-frontend-<feature>-*.md` séparé**. Le diagnostic et le bilan vivent dans la section `## Bilans` du fichier de progression. Sinon, sauvegarder sous : `docs/scaffold-frontend-<feature>-<date>.md`
 
 ```markdown
 # Scaffold Diagnostic: Frontend — <feature>
@@ -635,6 +616,8 @@ Save to: `docs/scaffold-frontend-<feature>-<date>.md`
 | Gateway implementation | ✅ / ❌ | |
 | DTOs | ✅ / ❌ | |
 | Presenter | ✅ / ❌ | |
+| Field Presenters (si formulaire) | ✅ / ❌ / N/A | liste des champs |
+| Result<T> partagé | ✅ / ❌ | |
 | Page | ✅ / ❌ | |
 | Components | ✅ / ❌ | |
 | DI registration | ✅ / ❌ | |
@@ -647,14 +630,9 @@ Save to: `docs/scaffold-frontend-<feature>-<date>.md`
 4. <what to create — phase 4>
 ```
 
-### Gate — End of PHASE 0
+### End of PHASE 0
 
-⛔ **GATE: Stop after producing the diagnostic document.**
-
-Ask:
-> *"Diagnostic termine. Voici ce qui manque : [resume]. Le plan de travail vous convient-il ? Confirmez pour commencer, ou ajustez."*
-
-Wait for explicit user confirmation.
+Diagnostic consigné. Enchaîner immédiatement sur PHASE 1 (pas de gate utilisateur).
 
 ---
 
@@ -694,22 +672,26 @@ Create `UI.Domain/Presenters/[Feature]/[Feature]Presenter.cs`:
   - Empty action methods for user interactions
 - **No business logic** — only the structural skeleton with state management
 
+#### 3 bis. Field Presenters (uniquement si la feature contient un formulaire — cf. PHASE 0)
+
+Pour chaque champ listé en PHASE 0 (email, mot de passe, pseudonyme, etc.) :
+
+1. **Garantir le type `Result<T>` partagé** : s'il n'existe pas, le créer dans `UI.Domain/Commun/Result.cs`. `Result<T>` est **réservé aux Field Presenters** (cf. `blazor-hexagonal-frontend.md` — pas d'usage côté Gateway).
+
+2. **Scaffolder chaque Field Presenter** dans `UI.Domain/Presenters/[Feature]/Champs/[Champ]Presenter.cs` :
+   - Invoquer **obligatoirement** le skill `blazor-hexagonal` (section Field Presenter) pour générer le template — ne pas improviser.
+   - Structure attendue : `record [Champ]Presenter` immutable, classe interne `Valide` à construction contrôlée (constructeur privé), méthode statique `Creer(string saisie) : Result<Valide>` qui porte les règles de validation du champ.
+   - Pas de dépendance Blazor. Pas d'état mutable. La validité est garantie par construction.
+
+3. **Wrappers UI Kit associés** : noter dans le bilan que la PHASE 3 devra utiliser `ChampEmail`/`ChampMotDePasse`/`ChampPseudonyme` (skill `blazor-ui-kit`) — jamais un `<InputText>` nu ni un composant Radzen direct.
+
 ### Verification
 
 Run `dotnet build` — must compile.
 
-### Gate — End of PHASE 1
+### End of PHASE 1
 
-⛔ **GATE: Stop after creating UI.Domain infrastructure.**
-
-Present:
-- Port created (methods listed)
-- DTOs created
-- Presenter shell (properties and methods listed)
-- Build status ✅
-
-Ask:
-> *"Presenter et port crees dans UI.Domain. Tout compile. Confirmez pour passer a l'implementation Gateway."*
+Vérifier `dotnet build` vert puis enchaîner sur PHASE 2 (pas de gate utilisateur).
 
 ---
 
@@ -742,17 +724,9 @@ Verify in `Program.cs` that BOTH registrations are present:
 
 **⚠️ A missing Gateway registration compiles but fails at runtime with `CannotResolveService`.**
 
-### Gate — End of PHASE 2
+### End of PHASE 2
 
-⛔ **GATE: Stop after creating Gateway implementation.**
-
-Present:
-- Gateway created (methods implemented)
-- DI registration added in `Program.cs` (show the exact line)
-- Build status ✅
-
-Ask:
-> *"Gateway HTTP creee et enregistree dans le DI. Tout compile. Confirmez pour passer au cablage Blazor."*
+Vérifier `dotnet build` vert puis enchaîner sur PHASE 3 (pas de gate utilisateur).
 
 ---
 
@@ -772,6 +746,7 @@ Create the page and component shells wired to the Presenter.
    - Wire `Presenter.OnChanged` -> `InvokeAsync(StateHasChanged)`
    - Wire `Dispose` -> unsubscribe `OnChanged`
    - Use Kit wrappers (Button, TextBox, DataGrid, etc.) — **never direct Radzen components**
+   - **Formulaires** : pour chaque champ scaffoldé en PHASE 1 (étape 3 bis), utiliser le wrapper Kit correspondant (`ChampEmail`, `ChampMotDePasse`, `ChampPseudonyme`, etc.) bindé sur le Field Presenter. Jamais un `<InputText>` nu, jamais un `<RadzenTextBox>` direct. Voir skill `blazor-ui-kit`.
    - Add `data-testid` attributes on interactive elements
 
 2. Add a `<NavLink>` entry in `Layout/NavMenu.razor` for this new page:
@@ -808,19 +783,9 @@ Run `dotnet test` — all existing tests must remain green.
 
 If ANY link in the chain is missing, the app will compile but crash at runtime with `CannotResolveService`. This is the #1 scaffolding pitfall.
 
-### Gate — End of PHASE 3
+### End of PHASE 3
 
-⛔ **GATE: Stop after creating the page and components.**
-
-Present:
-- Page created (route, Presenter wiring, wrappers used)
-- Components created (if any)
-- DI chain complete in `Program.cs` (list both Gateway AND Presenter registrations)
-- Build status ✅
-- Existing tests status ✅
-
-Ask:
-> *"Page et composants crees avec cablage Presenter. Tout compile et les tests existants passent. Confirmez pour creer les fakes de test."*
+Vérifier `dotnet build` vert et tests existants verts puis enchaîner sur PHASE 4 (pas de gate utilisateur).
 
 ---
 
@@ -875,25 +840,56 @@ Create test doubles and a smoke test for this feature area.
    }
    ```
 
+3. **Smoke tests Field Presenters** (uniquement si la feature a des champs validés — cf. PHASE 1 étape 3 bis).
+
+   Pour chaque Field Presenter scaffoldé, créer `tests/UI.Domain.Tests/Presenters/[Feature]/Champs/[Champ]PresenterTests.cs` avec au minimum deux smoke tests :
+
+   ```csharp
+   public class [Champ]PresenterTests
+   {
+       [Fact]
+       public void Creer_doit_retourner_Valide_quand_saisie_correcte()
+       {
+           // Arrange
+           var saisie = "<valeur valide>";
+
+           // Act
+           var resultat = [Champ]Presenter.Creer(saisie);
+
+           // Assert
+           resultat.EstSucces.Should().BeTrue();
+       }
+
+       [Fact]
+       public void Creer_doit_retourner_Echec_quand_saisie_invalide()
+       {
+           // Arrange
+           var saisie = "<valeur invalide>";
+
+           // Act
+           var resultat = [Champ]Presenter.Creer(saisie);
+
+           // Assert
+           resultat.EstSucces.Should().BeFalse();
+       }
+   }
+   ```
+
+   Les cas limites précis (format email, longueur mot de passe, etc.) sont ajoutés en TDD via `/task-implement-feature-front`. Ici, seul le contrat `Creer → Result<Valide>` est verrouillé.
+
 ### Verification
 
 Run `dotnet test` — all tests (existing + new) must pass.
 
-### Gate — End of PHASE 4
+### End of PHASE 4
 
-⛔ **GATE: Stop after tests pass.**
-
-Present:
-- Fake Gateway created
-- Smoke tests created and passing ✅
-- All tests status ✅
-
-Ask:
-> *"Fakes et smoke tests en place. Tous les tests passent. Le scaffold de la feature est termine — vous pouvez maintenant implementer la logique du Presenter en TDD."*
+`dotnet test` vert. Produire le rapport final (section suivante) et restituer à l'utilisateur pour revue unique.
 
 ---
 
 ## Feature Scaffold — Final Report
+
+Si `docs/story-mapping/<projet>/progression.md` existe, **enrichir sa section `## Bilans`** — ne pas produire de fichier `docs/scaffold-frontend-<feature>-*.md` séparé. Sinon, consigner le rapport ci-dessous dans la conversation / un doc ad hoc.
 
 ```
 Feature Scaffold complete ✅
@@ -970,8 +966,8 @@ tests/
 │       │   └── Fake[Feature]Gateway.cs
 │       └── [Feature]/
 │           └── [Feature]Presenter_ChargementTests.cs
-└── Frontend.PlaywrightTests/
-    ├── Frontend.PlaywrightTests.csproj
+└── UI.PlaywrightTests/
+    ├── UI.PlaywrightTests.csproj
     ├── playwright.config.json
     └── Bugs/
 ```

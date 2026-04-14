@@ -114,7 +114,7 @@ Reference skills (no prefix) provide domain knowledge loaded by agents.
 |---|---|---|
 | `/task-scaffold-back` | `@scaffold` | Infrastructure scaffolding (general, BC-specific, or aggregate-specific) |
 | `/task-implement-feature-back` | `@implement-feature` | TDD step-by-step (user gate per RED/GREEN/REFACTOR) |
-| `/task-implement-feature-auto-back` | `@implement-feature` | TDD autonomous (single gate at the end) |
+| `/task-implement-feature-auto-back` | `@implement-feature` | TDD autonome — 2 gates (validation périmètre Phase 0 + revue finale), pas de gate RED/GREEN/REFACTOR |
 | `/task-fix-bug-back` | `@fix-bug` | Test-first bug fixing |
 | `/task-refactor-back` | `@refactor` | Iso-functional refactoring |
 
@@ -141,6 +141,17 @@ Non adoptés (motivations en memory) : `superpowers:test-driven-development` (co
 
 ---
 
+## Reprise post-reset
+
+Pour les chantiers multi-étapes où l'utilisateur reset le contexte entre chaque étape (scaffold → feature → feature → bug), utiliser le skill **`/task-resume`**.
+
+- Fichier de progression canonique : `docs/story-mapping/<projet>/progression.md`.
+- Il sert de **source unique de vérité** : séquence d'étapes (tableau statut), bilans horodatés.
+- Les agents (`scaffold`, `implement-feature`, `fix-bug`, `refactor` + équivalents frontend) **ne doivent pas** produire de rapport séparé sous `docs/scaffold-*.md`, `docs/feature-*.md` etc. quand un `progression.md` projet existe — ils enrichissent la section « Bilans » de ce fichier.
+- Quand l'utilisateur dit « continue », « reprends » ou « on enchaîne » après un `/clear`, invoquer `/task-resume` qui lit le fichier et relance la prochaine étape.
+
+---
+
 ### Typical workflow
 
 ```
@@ -154,15 +165,19 @@ Non adoptés (motivations en memory) : `superpowers:test-driven-development` (co
        /task-story-mapping            (ordered MVP roadmap → user stories)
               |
               v
-       /task-scaffold-back             (backend infrastructure)
+       /task-scaffold-back                          (backend foundation — une seule fois, sans args)
               |
-              ├── /task-scaffold-back <BC> <Aggregate>  (aggregate plumbing — per aggregate)
+              ├── /task-scaffold-back <BC>                     (per bounded context)
               |         |
-              |         v
+              |         └── /task-scaffold-back <BC> <Aggr>    (per aggregate)
+              |                    |
+              |                    v
               ├── /task-implement-feature-back   (TDD domain — per story order)
               |
               └── /task-implement-feature-front  (TDD Presenter — per story order)
                      |
                      v
               /task-fix-bug-back      (bug fixing)
+
+       ↻ /task-resume                 (reprise post-reset — lit docs/story-mapping/<projet>/progression.md)
 ```

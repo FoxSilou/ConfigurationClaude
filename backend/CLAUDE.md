@@ -122,6 +122,15 @@ Un seul fichier fait autorité par concept. Les autres peuvent **référencer** 
 
 **Règle d'ajout** : avant de documenter un concept dans un nouveau fichier, vérifier qu'il n'existe pas déjà un propriétaire. Si oui → éditer le propriétaire. Sinon → créer la rule/skill et ajouter une ligne dans cette matrice.
 
+## Rapports d'exécution — pas de duplication
+
+Les agents `scaffold`, `implement-feature`, `fix-bug`, `refactor` **ne doivent PAS créer de rapport séparé** sous `docs/scaffold-*.md`, `docs/feature-*.md`, etc. quand un fichier `docs/story-mapping/<projet>/progression.md` existe. Le bilan complet vit :
+
+1. dans la section `## Bilans` de `progression.md` (historique horodaté, source unique de vérité) ;
+2. dans le message de retour à l'orchestrateur (résumé immédiat).
+
+Voir workspace `CLAUDE.md` section « Reprise post-reset » et le skill `/task-resume` pour la convention complète.
+
 ## Slash Commands
 
 | Command | Description |

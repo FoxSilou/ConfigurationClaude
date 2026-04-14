@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash scripts/check-cs-antipatterns.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/check-cs-antipatterns.sh\""
           }
         ]
       }

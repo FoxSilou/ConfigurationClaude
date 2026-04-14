@@ -62,6 +62,8 @@ Both modes share the same ANALYSE (Phase 0), COMPONENT WIRING (Phase 2), and GAT
 ## Workflow Overview
 
 ```
+PHASE -1 -- PREREQUIS BACKEND
+  | (user gate)
 PHASE 0 -- ANALYSE
   | (user gate)
 PHASE 1 -- TDD PRESENTER (mode determines gate frequency)
@@ -69,9 +71,47 @@ PHASE 1 -- TDD PRESENTER (mode determines gate frequency)
 PHASE 2 -- CABLAGE COMPOSANT
   | (user gate)
 PHASE 3 -- IMPLEMENTATION GATEWAY
+  | (user gate)
+PHASE 4 -- TEST PLAYWRIGHT E2E (golden path, conditions reelles)
   |
 FEATURE FRONTEND COMPLETE
 ```
+
+---
+
+## PHASE -1 -- PREREQUIS BACKEND
+
+### Goal
+Garantir que la partie backend de l'US est livree avant d'engager le moindre travail frontend. Une US frontend ne s'implemente que sur un backend deja vert.
+
+### Steps
+
+1. **Localiser `progression.md`** : `Glob` sur `docs/story-mapping/*/progression.md`.
+   - 0 candidat -> mode "chantier hors story-map" : aller au step 3 (fallback).
+   - >=2 candidats -> demander a l'utilisateur lequel correspond a l'US courante.
+2. **Identifier la ligne backend** correspondant a l'US (meme `.feature` ou meme slug que la commande front en cours). Heuristique :
+   - Extraire le slug du `.feature` passe en argument (ou de l'intitule de l'US).
+   - Chercher dans le tableau `Sequence` la ligne contenant `/task-implement-feature-*-back` avec ce meme `.feature` / slug.
+   - Si trouvee : lire son statut.
+     - Statut `✅ fait` -> OK, continuer.
+     - Statut `⏸ a faire` / `⏳ en cours` / `⏳ prochaine` -> **bloquer** :
+       > *"L'US `<slug>` n'a pas sa partie backend livree (ligne N de `progression.md` = `<statut>`). Lance `/task-implement-feature-*-back` d'abord, puis reviens."*
+   - Si introuvable -> avertissement non bloquant : *"Aucune ligne backend reperee pour cette US dans `progression.md`. Verifie que c'est voulu avant de continuer."*
+3. **Verifier `backend/Api.json`** (toujours, meme en fallback) :
+   - Le fichier existe ?
+   - Les `operationId` attendus pour cette US y figurent ?
+   - Sinon -> demander a l'utilisateur de rebuild backend ou d'implementer les endpoints manquants.
+
+### Gate -- End of PHASE -1
+
+Annoncer :
+- Statut backend : `OK (ligne N = ✅ fait)` / `chantier hors story-map` / `bloque`.
+- Endpoints attendus presents dans `Api.json` : oui / non.
+
+Demander :
+> *"Prerequis backend valides. Confirmez pour demarrer l'analyse (Phase 0)."*
+
+Attendre confirmation explicite.
 
 ---
 
@@ -90,11 +130,7 @@ Understand the full scope of the frontend feature before writing a single line o
    - The **derived properties** (visibility, activation rules)
    - The **actions** (user interactions triggering state transitions)
    - The **backend endpoints** the Gateway will call
-3. Verify the backend endpoints exist or are planned:
-   - Check for matching POST/GET endpoints in the backend solution
-   - Check that the backend `Api.json` (OpenAPI spec) contains these endpoints with correct `operationId` values
-   - If endpoints don't exist yet, flag it: the backend must be implemented first for Phase 3
-   - If `Api.json` is stale (missing new endpoints), note that the backend must be rebuilt before Phase 3
+3. Les prerequis backend (existence des endpoints, `Api.json` a jour, statut dans `progression.md`) ont deja ete valides en Phase -1 -- ne pas re-verifier.
 4. Produce an **ordered test list** from the UI Discovery spec (or derive one if starting from a description).
 5. Write the analysis document.
 
@@ -285,6 +321,58 @@ If the endpoints exist but the NSwag client doesn't have the corresponding metho
 - Error handling: the Gateway catches `ApiException` and rethrows via `ApiExceptionTranslator.Traduire(ex)` → `ErreurMetierGateway` (400 + Problem Details `detail`) or `ErreurTechniqueGateway` (everything else). The Presenter catches both types, sets `Etat = EnErreur` and triggers an Alert via `INotificationService`. See rule `gateway-error-handling.md`.
 - No retry logic in the Gateway (that's infrastructure concern for later)
 
+### Gate -- End of PHASE 3
+
+Demander :
+> *"Gateway HTTP cable et DI verifiee. Confirmez pour passer au test Playwright E2E (Phase 4)."*
+
+---
+
+## PHASE 4 -- TEST PLAYWRIGHT E2E
+
+### Goal
+Verifier l'US de bout en bout dans des conditions les plus proches du reel possible : navigateur reel, frontend reel, backend reel, base reelle ephemere. Pas de mock HTTP, pas de `TestHost`. Un test par US couvrant le golden path defini dans la UI Discovery / la feature BDD.
+
+### Pre-requisites
+
+- Le projet `tests/UI.PlaywrightTests/` existe avec `Fixtures/AppFixture.cs` et `Features/`. Sinon -> recommander `/task-scaffold-front` puis revenir.
+- `playwright install` a deja ete execute sur la machine (sinon : `pwsh tests/UI.PlaywrightTests/bin/Debug/net*/playwright.ps1 install`).
+
+### Steps
+
+1. **Identifier le golden path** : extrait du `.feature` BDD ou du UI Discovery (scenario principal, succes nominal).
+2. **Ecrire le test** dans `tests/UI.PlaywrightTests/Features/<BC>/<Feature>Tests.cs` :
+   - Heriter de `PageTest` ou utiliser `IClassFixture<AppFixture>`.
+   - `[Collection("AppFixture")]` pour mutualiser le demarrage.
+   - Naming : `<Feature>_doit_<resultat>_quand_<contexte>`.
+   - `// Arrange / Act / Assert` obligatoires.
+   - Selecteurs `data-testid` exclusivement.
+   - Donnees de test creees via le parcours UI lui-meme ou via appel API direct (pas d'`INSERT` SQL manuel).
+3. **Demarrer la stack reelle** via `AppFixture` :
+   - DB ephemere (Testcontainers).
+   - Backend `dotnet run` (process enfant, port libre).
+   - Frontend `dotnet run` (process enfant, pointe sur le backend).
+   - Playwright attaque l'URL frontend reelle.
+4. **Executer** : `dotnet test tests/UI.PlaywrightTests/`.
+5. **Diagnostiquer en cas d'echec** :
+   - Front cassé (binding, Presenter, DI) ?
+   - Backend cassé (endpoint, validation) ?
+   - Contrat NSwag desynchro (rebuild backend puis frontend) ?
+   - Selecteur `data-testid` manquant dans le `.razor` ?
+   - Ne jamais "fixer" le test en mockant -- corriger la cause reelle.
+
+### Gate -- End of PHASE 4
+
+Presenter a l'utilisateur :
+- Scenario Playwright (parcours + assertions cles).
+- Resultat : `passed` / `failed`.
+- Si echec : diagnostic et plan de correction.
+
+Demander :
+> *"Test Playwright E2E vert. Confirmez la cloture de l'US."*
+
+---
+
 ### Done -- Frontend Feature Complete
 
 A frontend feature is considered **DONE** when:
@@ -292,6 +380,7 @@ A frontend feature is considered **DONE** when:
 - The `.razor` component is wired and renders correctly
 - The HTTP Gateway is implemented and registered
 - DI is configured for the full chain: Component -> Presenter -> Gateway
+- **Le test Playwright E2E de l'US est ecrit et passe (Phase 4) contre la stack reelle (backend + DB lances).**
 
 **⚠️ DI chain verification** — Before declaring done, open `Program.cs` and confirm ALL registrations are present:
 1. `AddHttpClient<I<Feature>Gateway, Http<Feature>Gateway>(...)` — port→adapter
@@ -300,6 +389,6 @@ A frontend feature is considered **DONE** when:
 A missing registration compiles but crashes at runtime with `CannotResolveService`. This is the #1 frontend scaffolding pitfall.
 
 Report:
-- All tests passing
-- Files created/modified (Presenter, tests, Fake, Gateway port, HTTP Gateway, .razor, DI)
-- Backend dependency status
+- All tests passing (xUnit Presenter + bUnit eventuel + Playwright E2E)
+- Files created/modified (Presenter, tests, Fake, Gateway port, HTTP Gateway, .razor, DI, test Playwright)
+- Backend dependency status (rappel : valide en Phase -1)
