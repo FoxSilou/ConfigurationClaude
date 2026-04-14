@@ -233,6 +233,8 @@ Create the frontend project structure following the hexagonal architecture.
 
 ### Steps
 
+0. Créer le fichier solution `<Projet>.UI.sln` à la racine de `frontend/`.
+   Le nom du `.sln` reprend le **préfixe des projets** (`<Projet>.UI.*`), **pas** le nom du dossier workspace (`frontend/`). Exemple : projets `ImperiumRex.UI.Blazor` / `ImperiumRex.UI.Domain` → solution `ImperiumRex.UI.sln` (et non `ImperiumRex.Frontend.sln`).
 1. Create the Blazor project if it does not exist:
    - Add `<WasmDebugging>true</WasmDebugging>` in the `<PropertyGroup>` of the `.csproj` to enable WebAssembly debugging
    - Overwrite `Properties/launchSettings.json` to pin dev ports : `"applicationUrl": "https://localhost:5101;http://localhost:5100"` (ne pas conserver les ports aléatoires de `dotnet new`).
@@ -574,7 +576,7 @@ Inventory what exists and what is missing for this feature area.
    - Which backend API endpoints does it consume?
    - What data does it display?
    - What actions can the user perform?
-   - **La feature contient-elle un formulaire avec champs validés ?** Si oui, lister les champs (ex: email, mot de passe, pseudonyme). Chaque champ listé → un Field Presenter à scaffolder en PHASE 1 (étape 3 bis).
+   - **Inventaire formulaire (bloquant).** Si la feature contient un formulaire, lister CHAQUE champ dans un tableau avec colonne « Type sémantique ». Pour tout champ dont le type sémantique figure dans `rules/blazor-hexagonal-frontend.md` § Field Presenters (email, motDePasse, pseudonyme, identifiant, telephone, url, iban, dateNaissance, etc.) → Field Presenter **OBLIGATOIRE** à scaffolder en PHASE 1 (étape 3 bis). L'argument « le backend valide » n'est **pas** recevable. Le diagnostic doit explicitement lister les Field Presenters attendus (ou cocher « aucun — feature sans champ validable »).
 4. Check for existing infrastructure:
 
 | Concern | What to check | Location |
@@ -617,7 +619,7 @@ Si `docs/story-mapping/<projet>/progression.md` existe, **ne pas créer de `docs
 | Gateway implementation | ✅ / ❌ | |
 | DTOs | ✅ / ❌ | |
 | Presenter | ✅ / ❌ | |
-| Field Presenters (si formulaire) | ✅ / ❌ / N/A | liste des champs |
+| Field Presenters | ✅ / ❌ / N/A (feature sans formulaire uniquement) | liste exhaustive des champs validables + type sémantique ; N/A interdit s'il existe un formulaire avec au moins un champ email/motDePasse/pseudonyme/identifiant/... |
 | Result<T> partagé | ✅ / ❌ | |
 | Page | ✅ / ❌ | |
 | Components | ✅ / ❌ | |
@@ -688,11 +690,12 @@ Pour chaque champ listé en PHASE 0 (email, mot de passe, pseudonyme, etc.) :
 
 ### Verification
 
-Run `dotnet build` — must compile.
+- Run `dotnet build` — must compile.
+- **Gate Field Presenters (bloquante).** Pour chaque champ validable identifié en PHASE 0, vérifier la présence physique du fichier `UI.Domain/Presenters/<feature>/Champs/<Champ>Presenter.cs` avec sa classe interne `Valide` et sa factory `Result<Valide> Creer(string)`. Vérifier que le Presenter parent référence `<Champ>Presenter` (pas `string`) et que la signature du Gateway consomme `<Champ>Presenter.Valide`. Si un Field Presenter attendu est manquant ou si un `string` subsiste à sa place, **stopper** et remonter à l'utilisateur avant PHASE 2.
 
 ### End of PHASE 1
 
-Vérifier `dotnet build` vert puis enchaîner sur PHASE 2 (pas de gate utilisateur).
+Vérifier `dotnet build` vert + gate Field Presenters OK puis enchaîner sur PHASE 2 (pas de gate utilisateur).
 
 ---
 

@@ -18,7 +18,23 @@ Ne PAS extraire pour un simple toggle isolé sans combinatoire.
 
 ## Field Presenters
 
-Les champs de formulaire avec validation (email, mot de passe, pseudonyme, etc.) sont modélisés comme des **Field Presenters** : un `record` immutable avec un type `Valide` imbriqué qui garantit la validité par construction. La validation utilise `Result<T>` (pas d'exceptions). Voir skill `blazor-hexagonal` pour les templates complets.
+Tout champ de formulaire dont le **type sémantique** porte un invariant **DOIT** être modélisé comme un **Field Presenter** : un `record` immutable avec un type `Valide` imbriqué (constructeur privé + factory `Result<Valide> Creer(string)`) qui garantit la validité **par construction**. Voir skill `blazor-hexagonal` pour les templates complets.
+
+### Liste (non exhaustive) des types sémantiques concernés — Field Presenter obligatoire
+
+`email`, `motDePasse`, `pseudonyme`, `identifiant`, `nomUtilisateur`, `telephone`, `url`, `iban`, `codePostal`, `numeroSiret`, `dateNaissance`, et tout champ dont la règle métier porte un format, une longueur minimale, ou un invariant contrôlable côté UI.
+
+### Cas où un `string` nu est autorisé
+
+Exclusivement les champs de **texte libre sans contrainte** : commentaire, description, recherche plein-texte, libellé saisi librement par l'utilisateur.
+
+### Interdictions explicites
+
+- **« Le backend valide, donc on peut laisser `string` »** n'est **pas** une justification valable. Le Field Presenter existe pour la type-safety UI (impossibilité structurelle de passer une valeur non validée au Gateway) et le feedback instantané — indépendamment de la revalidation backend.
+- Un Presenter parent (`InscriptionPresenter`, `ConnexionPresenter`, etc.) ne doit **jamais** exposer `string Email`, `string MotDePasse` : il expose `EmailPresenter Email`, `MotDePassePresenter MotDePasse`.
+- La signature d'un Gateway consommant un champ sémantique doit prendre le type `Valide` imbriqué : `InscrireAsync(EmailPresenter.Valide email, ...)` — jamais `string`.
+
+### Portée de `Result<T>`
 
 `Result<T>` est **réservé aux Field Presenters**. Les Presenters standards ne l'utilisent pas : ils signalent l'échec d'un appel Gateway via l'état `EnErreur` + `MessageErreur`, et déclenchent une Alert globale via `INotificationService`. Voir `gateway-error-handling.md`.
 

@@ -131,8 +131,9 @@ Understand the full scope of the frontend feature before writing a single line o
    - The **actions** (user interactions triggering state transitions)
    - The **backend endpoints** the Gateway will call
 3. Les prerequis backend (existence des endpoints, `Api.json` a jour, statut dans `progression.md`) ont deja ete valides en Phase -1 -- ne pas re-verifier.
-4. Produce an **ordered test list** from the UI Discovery spec (or derive one if starting from a description).
-5. Write the analysis document.
+4. **Inventaire des champs de formulaire (bloquant).** Si la feature contient un formulaire, lister CHAQUE champ dans un tableau avec colonne « Type sémantique ». Pour tout champ dont le type sémantique est listé dans `rules/blazor-hexagonal-frontend.md` § Field Presenters (email, motDePasse, pseudonyme, identifiant, telephone, url, iban, dateNaissance, etc.) → Field Presenter **OBLIGATOIRE**. L'argument « le backend valide » n'est **pas** recevable — la règle impose le Field Presenter pour la type-safety UI, indépendamment du backend. La section `## Field Presenters` du document d'analyse DOIT lister ces champs avec leur type `Valide` attendu.
+5. Produce an **ordered test list** from the UI Discovery spec (or derive one if starting from a description). Les tests d'état initial asserent `Presenter.<Champ>.Valeur is null` pour chaque Field Presenter (pas `<Champ> == ""`).
+6. Write the analysis document.
 
 ### Analysis Document
 
@@ -149,14 +150,28 @@ Save to: `docs/front/<feature-name>.md`
 - **Ecran**: <screen name> (<route>)
 - **BC source**: <BoundedContext>
 
+## Field Presenters
+<!-- Section obligatoire si la feature contient un formulaire. Lister chaque champ validable. -->
+<!-- Si aucun champ validable (feature sans formulaire), écrire explicitement "Aucun — feature sans formulaire". -->
+| Champ | Type semantique | Field Presenter | Regles de validation |
+|-------|-----------------|-----------------|----------------------|
+| email | email | `EmailPresenter` + `EmailPresenter.Valide` | non-vide, format RFC |
+| ... | ... | ... | ... |
+
 ## Gateway Port
 - **Interface**: I<FeatureName>Gateway
 - **Methodes**:
   - <method signature> -> <return type> (-> <backend endpoint>)
+  <!-- Chaque parametre correspondant a un Field Presenter DOIT utiliser le type Valide imbrique -->
+  <!-- Ex: InscrireAsync(EmailPresenter.Valide email, PseudonymePresenter.Valide pseudo, MotDePassePresenter.Valide mdp, CancellationToken ct) -->
+  <!-- JAMAIS de `string` pour un champ semantique -->
 
 ## Etat du Presenter
 | Propriete | Type | Description |
 |-----------|------|-------------|
+<!-- Chaque champ validable est type par son Field Presenter : `Email : EmailPresenter`, pas `string` -->
+<!-- Etat initial : chaque Field Presenter vaut `EmailPresenter.Vide()` -->
+
 
 ## Proprietes derivees
 | Propriete | Regle |
@@ -183,6 +198,7 @@ Present a summary to the user:
 - Document saved at `docs/front/<feature-name>.md`
 - Number of tests planned
 - Backend dependency status (all endpoints exist, or some are missing)
+- **Field Presenters identifies** : liste exhaustive des champs validables + leur Field Presenter attendu (ou mention explicite « aucun champ validable »). Si un champ au type sémantique listé dans `rules/blazor-hexagonal-frontend.md` n'est **pas** couvert par un Field Presenter, **stopper** et corriger l'analyse avant la gate.
 
 Ask:
 > *"Analyse terminee. Veuillez revoir `docs/front/<feature-name>.md`. Confirmez pour demarrer le TDD, ou ajustez l'analyse."*
@@ -239,7 +255,12 @@ No user gates during TDD. Run the full cycle (RED -> GREEN -> REFACTOR) for ever
 - **French naming.** Test methods: `Action_doit_resultat_quand_contexte`. Properties and methods in French.
 - **EtatChargement enum.** Reuse `Inactif`, `EnCours`, `Charge`, `EnErreur` for loading states.
 - **OnChanged event.** The Presenter notifies UI changes via `event Action? OnChanged`. Only invoke `OnChanged` in async methods for intermediate states during an `await`. Synchronous setters called via Blazor event handlers do NOT need `OnChanged` — Blazor re-renders automatically after.
-- **Field Presenters.** When a form field has validation (email, password, etc.), create a dedicated Field Presenter (immutable record + nested `Valide` type + `Result<T>`). The Gateway receives `Valide` types — impossible to pass unvalidated values. See skill `blazor-hexagonal` for templates. **`Result<T>` est reserve aux Field Presenters** — jamais dans les signatures de Gateway.
+- **Field Presenters.** Tout champ de formulaire au type sémantique validable (email, motDePasse, pseudonyme, telephone, url, iban, dateNaissance, etc. — cf. `rules/blazor-hexagonal-frontend.md` § Field Presenters) est **obligatoirement** un Field Presenter dédié (immutable record + nested `Valide` type + `Result<T>`). Consequences non negociables :
+  - Le **Presenter parent** expose `Email : EmailPresenter` (pas `string Email`), initialisé à `EmailPresenter.Vide()`.
+  - Le **Gateway** reçoit des types `Valide` : `InscrireAsync(EmailPresenter.Valide email, ...)` — jamais `string`.
+  - Les **tests d'état initial** asserent `Presenter.Email.Valeur is null` (pas `Presenter.Email == ""`).
+  - « Le backend valide » n'est **pas** une justification valable pour omettre le Field Presenter.
+  - Voir skill `blazor-hexagonal` pour le template complet. **`Result<T>` est réservé aux Field Presenters** — jamais dans les signatures de Gateway.
 - **Erreurs Gateway.** Le Presenter standard injecte `INotificationService` et attrape explicitement `ErreurMetierGateway` (message backend user-friendly) et `ErreurTechniqueGateway` (message generique). Pas de `catch (Exception)`. Voir rule `gateway-error-handling.md` et skill `blazor-ui-kit` (Notifications).
 - **AAA comments mandatory.** Every test method MUST contain `// Arrange`, `// Act`, `// Assert` comments. No exceptions.
 
