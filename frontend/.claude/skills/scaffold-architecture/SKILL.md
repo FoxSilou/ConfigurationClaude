@@ -85,3 +85,12 @@ Les signatures des ports (Gateways) utilisent des DTOs immuables (`record` ou `r
 - **Fakes et Stubs uniquement** — pas de Mocks (meme philosophie que le backend).
 - Les tests Presenter vivent dans `UI.Domain.Tests/` — **pas de dependance Blazor** dans ce projet.
 - Voir skill `frontend-testing` pour les templates de tests.
+
+## Rules complémentaires (auto-chargées via `frontend/CLAUDE.md`)
+
+- `rules/blazor-hexagonal-frontend.md` — critère Presenter, Field Presenters, `Result<T>`, `OnChanged`
+- `rules/encapsulation-composants-ui.md` — wrappers Kit, interdiction Radzen direct
+- `rules/routing-frontend.md` — backend maître sur les URLs, NSwag, pas de HttpClient manuel
+- `rules/gateway-error-handling.md` — `ApiExceptionTranslator`, `ErreurMetierGateway` vs `ErreurTechniqueGateway`
+- `rules/nav-menu-layout.md` — NavMenu auto-enregistré par page
+- `rules/authentification-frontend.md` — `ITokenStorage`, DelegatingHandler, `AuthorizeView`

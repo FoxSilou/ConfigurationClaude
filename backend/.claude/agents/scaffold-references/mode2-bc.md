@@ -130,7 +130,7 @@ Create the persistence layer and port implementations for this bounded context.
 
 If the bounded context involves user authentication, follow rule `identity-framework.md` for the full hybrid Identity pattern. Key steps:
 
-- Create `ApplicationUser`, `AppIdentityDbContext`, `IdentityDataSeeder` (infra layer, shares Read DB)
+- Create `ApplicationUser`, `AppIdentityDbContext`, `IdentityDataSeeder` (infra layer). **`AppIdentityDbContext` utilise la chaîne `Read` existante — ❌ ne PAS ajouter de clé `"Identity"` dans `appsettings*.json`, ❌ ne PAS créer de base `<Solution>_Identity`.** Les tables `AspNet*` cohabitent avec les read models dans `<Solution>_Read`. Câblage : `AddWriteIdentite(config, readConnectionString)`. Voir `identity-framework.md` § "Connection String — partagée avec Read".
 - Create Identity projections syncing domain events → Identity tables via `UserManager`
 - For JWT: create `ITokenGenerator`, `IUtilisateurAuthReader` ports + infrastructure implementations
 - Create `AdministrateurSeeder` (infra layer) — seed event-sourced via `ICommandBus` (`InscrireUtilisateur` → `ConfirmerEmail` → `AttribuerRole`). Config via section `IdentitySeed` (`Email`, `Pseudonyme`) dans `appsettings.json` + password via user-secrets / env var `IdentitySeed__Password`. Invoqué depuis `Program.cs` **juste après** `IdentityDataSeeder.EnsureIdentityDatabaseAsync`, dans le même scope DI. Voir rule `identity-framework.md` § "Seed administrateur" pour la séquence complète et les guards d'idempotence.

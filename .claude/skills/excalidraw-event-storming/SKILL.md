@@ -1,9 +1,9 @@
 ---
 name: excalidraw-event-storming
 description: >
-  Use when generating Excalidraw diagrams for Event Storming workshops.
-  Supports all views: chaotic, timeline, process, aggregate, and flow.
-  Loaded by the event-storming agent as a rendering skill.
+  Use when the event-storming agent emits an Excalidraw diagram (chaotic, timeline,
+  process, aggregate, or flow view). Defines color conventions, sticky sizing,
+  layout algorithms, and the exact Excalidraw JSON element templates.
 user-invocable: false
 ---
 

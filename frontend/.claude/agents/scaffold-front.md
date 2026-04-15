@@ -248,7 +248,7 @@ Create the frontend project structure following the hexagonal architecture.
    - `Exceptions/` directory — includes `ErreurMetierGateway.cs` and `ErreurTechniqueGateway.cs` (see rule `gateway-error-handling.md`)
 3. Create the UI.Infrastructure project:
    - `UI.Infrastructure.csproj` — references UI.Domain
-   - `Gateways/` directory — includes `ApiExceptionTranslator.cs` (see rule `gateway-error-handling.md`)
+   - `Gateways/` directory — includes `ApiExceptionTranslator.cs` couvrant **tous** les statuts métier du contrat backend (`400` DomainException, `404` NotFoundException, `409` ConcurrencyException → `ErreurMetierGateway` ; reste → `ErreurTechniqueGateway`). Source de vérité : `backend/.claude/rules/error-handling.md`. Voir rule `gateway-error-handling.md`.
    - `Notifications/RadzenNotificationService.cs` — adapter for `INotificationService` (see skill `blazor-ui-kit`)
 4. Set up the Blazor project directory structure:
    ```

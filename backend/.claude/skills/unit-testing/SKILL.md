@@ -59,6 +59,9 @@ public async Task Creer_une_partie_quand_les_donnees_sont_valides()
 
 ## Test Naming Convention
 
+> Naming C# général (PascalCase classes, camelCase locales, suffixes, etc.) → voir skill `backend-conventions`. La section ci-dessous ne couvre **que** les règles spécifiques aux tests.
+
+
 ### Class name
 
 ```

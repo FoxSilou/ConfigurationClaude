@@ -90,5 +90,22 @@ public sealed record ObtenirPartie(Guid PartieId) : IQuery<PartieDto>
 - **No domain validation in queries** — if the data is in the store, it is valid.
 - Read repositories can use `IQueryable<T>` internally (unlike Write repositories which must not expose it).
 
+## Bootstrap du schéma Read
+
+- Les tables de read models doivent être matérialisées au démarrage via `ReadDatabaseSeeder.EnsureReadDatabaseAsync(IServiceProvider, CancellationToken)` dans `Shared.Read.Infrastructure/`.
+- Le seeder utilise `IRelationalDatabaseCreator.CreateTablesAsync()` (**pas** `EnsureCreatedAsync`) car le `ReadDbContext` **partage la base** avec `AppIdentityDbContext` — `EnsureCreatedAsync` serait no-op si la base existe déjà (créée par `IdentityDataSeeder`), laissant les tables de read models non créées.
+- Tolérer l'erreur SQL Server `2714` ("There is already an object named …") : au redémarrage à chaud, les tables existent déjà — silence attendu.
+- Câblage dans `Program.cs`, dans le scope `if (!app.Environment.IsEnvironment("Build"))`, **après** `IdentityDataSeeder.EnsureIdentityDatabaseAsync` (base créée + tables Identity posées) pour que `CreateTablesAsync` n'ait qu'à ajouter les tables du modèle Read.
+- Ne jamais utiliser `MigrateAsync` (piège OpenAPI build-time — pas de base au build).
+
+### Symptôme si omis
+
+```
+SqlException (0x80131904): Nom d'objet 'Utilisateurs' non valide.
+  at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync…
+```
+
+Déclenché dès la première projection écrivant dans une table Read.
+
 
 ---

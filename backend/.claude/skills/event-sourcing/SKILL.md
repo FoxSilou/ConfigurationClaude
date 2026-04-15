@@ -142,3 +142,10 @@ src/
 > Naming conventions, event immutability, version tracking, and round-trip testing rules are in `rules/event-sourcing.md`.
 
 **Snapshots**: optional optimization. A snapshot is simply the parameters of `Reconstituer`, serialized as JSON. When an aggregate's event count exceeds a configurable threshold, a snapshot is taken. On next load, `Reconstituer` is called from the snapshot, then only delta events are replayed through the rebuilder.
+
+## Rules complémentaires (auto-chargées)
+
+- `rules/event-sourcing.md` — contraintes normatives (domain purity, immutability, version tracking, round-trip tests, bootstrap seeder)
+- `rules/aggregate.md` — base `AggregateRoot<TId>` (utilisée telle quelle en ES)
+- `rules/domain-event.md` — naming, factory `Creer`, `OccurredOn`
+- `rules/shared-kernel.md` — contrats `IEventStore`, `IDomainEventBus`, `StreamKey`

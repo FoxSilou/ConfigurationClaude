@@ -2,7 +2,14 @@
 
 ## Principe
 
-Le backend est la **source unique de vérité du message d'erreur métier**. Il expose ses erreurs via **Problem Details (RFC 7807)** : `DomainException` → `400` avec `detail` portant un message français user-ready (cf. `backend/.claude/rules/error-handling.md`).
+Le backend est la **source unique de vérité du message d'erreur métier**. Il expose ses erreurs via **Problem Details (RFC 7807)** avec un `detail` portant un message français user-ready. Le contrat complet est défini dans `backend/.claude/rules/error-handling.md` :
+
+| Exception backend | Statut HTTP | Nature côté frontend |
+|---|---|---|
+| `DomainException` | `400` | `ErreurMetierGateway` (extraction `detail`) |
+| `NotFoundException` | `404` | `ErreurMetierGateway` (extraction `detail`) |
+| `ConcurrencyException` | `409` | `ErreurMetierGateway` (extraction `detail`) |
+| Tout le reste (500, réseau, timeout, JSON invalide, 4xx sans `detail`) | — | `ErreurTechniqueGateway` (libellé générique) |
 
 La chaîne de remontée côté frontend doit préserver ce message jusqu'à l'utilisateur :
 
@@ -22,12 +29,12 @@ Définies dans `UI.Domain/Exceptions/`. Deux types et deux seulement.
 
 ### `ErreurMetierGateway : Exception`
 
-- Levée quand le backend a renvoyé un `DomainException` mappé `400 Problem Details`.
+- Levée quand le backend a renvoyé une exception domaine mappée en Problem Details exploitable : statuts **400** (`DomainException`), **404** (`NotFoundException`), **409** (`ConcurrencyException`).
 - Le `Message` porte le `detail` extrait du Problem Details — message français, affichable tel quel à l'utilisateur.
 
 ### `ErreurTechniqueGateway : Exception`
 
-- Levée pour tout le reste : 500, erreur réseau, timeout, JSON mal formé, statut 4xx sans Problem Details exploitable.
+- Levée pour tout le reste : 500, erreur réseau, timeout, JSON mal formé, statut 4xx/5xx sans Problem Details exploitable.
 - Le `Message` est un libellé générique : `"Une erreur technique est survenue. Réessayez plus tard."`.
 - L'exception d'origine est transportée en `InnerException` pour les logs — jamais affichée à l'utilisateur.
 
@@ -35,13 +42,15 @@ Définies dans `UI.Domain/Exceptions/`. Deux types et deux seulement.
 
 Placé dans `UI.Infrastructure/Gateways/ApiExceptionTranslator.cs`. Une seule responsabilité : transformer une `ApiException` NSwag en exception frontend typée.
 
+⚠️ **Piège NSwag** — quand OpenAPI documente un schéma `ProblemDetails` pour un statut (typiquement `400`), NSwag génère une branche qui désérialise le body **en stream** et construit `ApiException<ProblemDetails>` avec `Response = string.Empty`. Le `detail` n'est donc **pas** dans `apiException.Response` : il est exposé via `ApiException<ProblemDetails>.Result.Detail`. Le translator doit inspecter le type typé en priorité, et retomber sur le parsing de `Response` pour les statuts sans branche typée (`404`/`409` passent par la branche « else » de NSwag qui, elle, remplit `Response`).
+
 ```csharp
 internal static class ApiExceptionTranslator
 {
     public static Exception Traduire(ApiException apiException)
     {
-        if (apiException.StatusCode == 400
-            && TryLireProblemDetails(apiException.Response, out var detail))
+        if (EstStatutMetier(apiException.StatusCode)
+            && TryExtraireDetail(apiException, out var detail))
         {
             return new ErreurMetierGateway(detail);
         }
@@ -50,6 +59,20 @@ internal static class ApiExceptionTranslator
             "Une erreur technique est survenue. Réessayez plus tard.",
             apiException);
     }
+
+    private static bool TryExtraireDetail(ApiException apiException, out string detail)
+    {
+        if (apiException is ApiException<ProblemDetails> typed
+            && !string.IsNullOrWhiteSpace(typed.Result?.Detail))
+        {
+            detail = typed.Result!.Detail!;
+            return true;
+        }
+        return TryLireProblemDetails(apiException.Response, out detail);
+    }
+
+    private static bool EstStatutMetier(int statut) =>
+        statut is 400 or 404 or 409;
 
     private static bool TryLireProblemDetails(string? response, out string detail)
     {

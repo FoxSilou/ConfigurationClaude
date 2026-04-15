@@ -101,3 +101,15 @@ Domain code follows the **ubiquitous language in French**. Technical/infrastruct
 3. Write the test first.
 4. Implement the minimum to pass the test.
 5. Refactor if necessary.
+
+## Rules complémentaires (auto-chargées via `backend/CLAUDE.md`)
+
+Les fichiers `.claude/rules/*.md` suivants font autorité sur leurs concepts respectifs — ne jamais redéfinir ici ce qui y est déjà documenté :
+
+- `aggregate.md`, `entity.md`, `value-object.md` — patterns domaine
+- `command.md`, `query.md`, `cqrs.md`, `mediatr.md`, `pipeline-behavior.md` — CQRS + dispatch
+- `domain-event.md`, `event-sourcing.md` — événements et persistence ES
+- `port-repository.md`, `efcore.md`, `read-model.md` — ports, adapters, Read side
+- `error-handling.md`, `shared-kernel.md`, `identity-framework.md` — transverses
+
+Matrice d'ownership concept → propriétaire : `backend/CLAUDE.md` § « Ownership Matrix ».

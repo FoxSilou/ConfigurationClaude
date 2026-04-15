@@ -1,8 +1,9 @@
 ---
 name: ui-discovery-formats
 description: >
-  Output templates for each UI Discovery phase (Screen Inventory, User Flows, Presenter Specs).
-  Preloaded by the ui-discovery agent as reference for output generation.
+  Use when the ui-discovery agent produces the screen inventory, user-flow diagrams,
+  or Presenter specifications. Defines the exact table structure, flow notation,
+  and Presenter spec skeleton (Gateway, Etat, proprietes derivees, actions, tests TDD).
 user-invocable: false
 ---
 

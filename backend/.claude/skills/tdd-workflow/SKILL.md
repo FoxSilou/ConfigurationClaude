@@ -14,7 +14,7 @@ user-invocable: false
 
 ## Prerequisite
 
-This skill builds on the `unit-testing` skill. All test structure, naming, test doubles, and assertion conventions defined there apply here without exception.
+This skill builds on the `unit-testing` skill. All test structure, naming, test doubles, and assertion conventions defined there apply here without exception. Naming C# général (identifiers, suffixes, casing) → voir `backend-conventions` ; ne pas redupliquer ici.
 
 ---
 

@@ -9,8 +9,14 @@ agent: scaffold
 
 Délègue à l'agent `scaffold`. Détection du mode selon les arguments :
 
-- **Aucun argument** → Mode 1 (fondation générale : Shared.Write/Read, API, E2E harness).
+- **Aucun argument** → Mode 1 (fondation : Shared.Write/Read, API, E2E harness).
 - **1 argument (BC)** → Mode 2 (bounded context : persistence, ports, DI, E2E fakes).
 - **2 arguments (BC + Aggregate)** → Mode 3 (agrégat : typed Id, events, repository, command/query, endpoints).
 
-Exécution autonome (pas de gate de validation de plan). Documentation complète dans la définition de l'agent.
+## Prerequisites
+
+- **Mode 1** — aucun.
+- **Mode 2** — Mode 1 exécuté (`backend/src/Shared/` doit exister).
+- **Mode 3** — Mode 2 exécuté pour ce BC (`backend/src/<BC>/` doit exister).
+
+Si le prérequis manque, l'agent stoppe et demande de scinder en étapes. Exécution autonome (pas de gate de plan). Documentation complète dans la définition de l'agent.

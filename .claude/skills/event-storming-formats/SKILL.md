@@ -1,8 +1,9 @@
 ---
 name: event-storming-formats
 description: >
-  Checkpoint markdown templates for each Event Storming step (1-5).
-  Preloaded by the event-storming agent as reference for output generation.
+  Use when the event-storming agent produces the markdown checkpoint for step 1, 2, 3, 4, or 5
+  (big-picture raw, timeline, process model, software design, final deliverables).
+  Defines the exact table structure and column set each checkpoint must follow.
 user-invocable: false
 ---
 

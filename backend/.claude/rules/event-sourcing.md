@@ -51,11 +51,20 @@ This project follows the **State Rebuilder** pattern (also known as "external fo
 | Domain events | French past participle (unchanged) | `PartieCree`, `JoueurRejoint` |
 | Snapshot class | Aggregate name + `Snapshot` | `PartieSnapshot` |
 
+### Bootstrap du schéma Write
+
+- Les tables de l'event store (`StoredEvents`, `AggregateSnapshots`) doivent être matérialisées **au démarrage** de l'API, via un seeder statique `WriteDatabaseSeeder.EnsureWriteDatabaseAsync(IServiceProvider, CancellationToken)` dans `Shared.Write.Infrastructure/EventStore/`.
+- Le seeder résout `WriteDbContext` et appelle `db.Database.EnsureCreatedAsync(ct)` — **pas** `MigrateAsync` (même piège que pour Identity : la génération OpenAPI au build n'a pas de base).
+- Câblage dans `Program.cs`, dans le scope `if (!app.Environment.IsEnvironment("Build"))`, **avant** `IdentityDataSeeder.EnsureIdentityDatabaseAsync` (l'event store doit exister avant tout dispatch de commande, notamment le seed administrateur).
+- Idempotent : `EnsureCreatedAsync` no-op si les tables existent déjà.
+
 ### Common mistakes
 
 | Mistake | Why it breaks | Correct approach |
 |---|---|---|
 | Registering `DomainEventNotificationHandler<TEvent>` once per handler instead of once per event type | Each handler is called N times (N = number of handlers for that event), causing duplicate inserts / EF Core tracking conflicts | `AddDomainEventHandlers` deduplicates via `HashSet<Type>` — always use it, never register notification handlers manually |
+| Oublier de bootstrapper la base Write au démarrage | Premier `AppendToStreamAsync` lève `SqlException (0x80131904): Nom d'objet 'StoredEvents' non valide` | Appeler `WriteDatabaseSeeder.EnsureWriteDatabaseAsync` dans `Program.cs` avant tout dispatch de commande |
+| Utiliser `MigrateAsync` côté event store | Casse la génération OpenAPI au build (pas de base disponible) | `EnsureCreatedAsync` + guard `!IsEnvironment("Build")`, symétrique au pattern `IdentityDataSeeder` |
 
 
 ---

@@ -137,6 +137,15 @@ public readonly record struct UtilisateurCourant
 - Unit tests : utiliser un **Fake** `ICurrentUserAccessor` (ex. `FakeCurrentUserAccessor` qui retourne un `UtilisateurCourant` configurable). Pas de Mock (cf. `unit-testing.md`).
 - E2E : aucun changement, l'auth passe par le JWT généré par `SeConnecter` et le header `Authorization: Bearer …`.
 
+## Connection String — partagée avec Read
+
+- `AppIdentityDbContext` utilise la **chaîne `Read` existante** (`builder.Configuration.GetConnectionString("Read")`).
+- **❌ Ne PAS ajouter une troisième clé `"Identity"` dans `appsettings*.json`.** Deux chaînes seulement : `Write` et `Read`.
+- **❌ Ne PAS créer de base séparée `<Solution>_Identity`.** Les tables `AspNet*` cohabitent avec les read models dans `<Solution>_Read`.
+- Le câblage DI passe la Read connection string directement : `AddWriteIdentite(config, readConnectionString)` — pas de paramètre `identityConnectionString`.
+
+Raison : les projections (`UtilisateurInscritIdentityProjection`, etc.) écrivent à la fois dans les tables Identity et dans les read models. Une seule base = une seule transaction logique, une seule seed, une seule chaîne à gérer.
+
 ## Persistence Model
 
 ```csharp
@@ -255,6 +264,7 @@ L'email de confirmation est envoyé via une **projection** sur `UtilisateurInscr
 | Not checking lockout in login handler | Brute-force attacks succeed without limit | Check `ILoginAttemptTracker.EstVerrouilleAsync()` before password verification |
 | Omitting rate limiting on auth endpoints | Automated attacks can flood login/registration | Apply `RequireRateLimiting("auth")` on sensitive endpoints |
 | Permissive password policy in production | Weak passwords compromise accounts | Enforce invariants in `MotDePasse` VO + synchronize Identity options |
+| Ajouter une 3ᵉ connection string `"Identity"` + base `_Identity` distincte | Viole la règle « shares the Read database » ; projections écrivent dans 2 bases séparées, migrations/seed dédoublés, pas d'atomicité projections ↔ read models | Réutiliser `GetConnectionString("Read")` ; jamais de clé `"Identity"` dans `ConnectionStrings` |
 | Seeding admin via `INSERT` SQL or `UserManager.CreateAsync` at startup | Bypasses event store — no events produced, projections drift | Dispatch `InscrireUtilisateur` + `ConfirmerEmail` + `AttribuerRole` through `ICommandBus` (see § Seed administrateur) |
 | Hardcoding admin password in `appsettings.json` | Secret leaks via git history | Config holds email/pseudo only; password via `dotnet user-secrets` or env var `IdentitySeed__Password` |
 | Extraire `sub`/`roles` manuellement depuis `ClaimsPrincipal` dans un endpoint ou un handler | Duplication, fuite de claims dans la couche HTTP, fragile (claim mapping JWT, fallback `?? "sub"` inutile) | Injecter `ICurrentUserAccessor` et appeler `Obtenir()` |
