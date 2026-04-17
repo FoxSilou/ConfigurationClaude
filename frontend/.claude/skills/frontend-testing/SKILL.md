@@ -182,6 +182,18 @@ Provisionnée par `/task-scaffold-front` dans `tests/UI.PlaywrightTests/Fixtures
 
 Mutualisation entre tests via `[CollectionDefinition("AppFixture")]` + `[Collection("AppFixture")]` sur les classes de test.
 
+### Neutraliser les protections cross-cutting (symétrie E2EFixture / AppFixture)
+
+Le backend expose des protections cross-cutting (rate limiter, lockout Identity, throttling mail, anti-forgery, etc.) qui sont **neutralisées en E2E backend** via `ConfigureAppConfiguration` + `InMemoryCollection` dans `WebApplicationFactory`. `AppFixture` frontend démarre le même backend mais **en sous-processus** (`dotnet run`) : l'`InMemoryCollection` n'est pas disponible. Chaque override backend E2E doit être **répliqué via env vars** dans `envBackend` sous la forme `Section__SousSection__Cle=valeur` (double underscore = séparateur de section pour le provider `EnvironmentVariablesConfigurationProvider`).
+
+**Check obligatoire avant clôture d'une US frontend** :
+
+1. Ouvrir `backend/tests/<*>.E2E.Tests/E2EFixture.cs` → lister les clés de l'`InMemoryCollection`.
+2. Ouvrir `frontend/tests/<*>.PlaywrightTests/Fixtures/AppFixture.cs` → vérifier que chaque clé backend est traduite en env var (`Section:Cle` → `Section__Cle`).
+3. Toute protection backend non-neutralisée côté front fera échouer le run global dès que le quota est atteint — erreur silencieuse en `--filter` (cf. section suivante).
+
+**Exemples de clés à répliquer systématiquement** : rate limiter (`RateLimiting:Auth:*`, `RateLimiting:Login:*`…), lockout Identity, throttling mail, clés JWT dev si différentes.
+
 ### Squelette d'un test d'US
 
 ```csharp
@@ -209,6 +221,29 @@ public class InscrireUtilisateur_GoldenPath_Tests : PageTest
     }
 }
 ```
+
+### Run global obligatoire avant clôture
+
+Pendant la rédaction, il est acceptable de filtrer un test individuel pour itérer vite :
+
+```bash
+dotnet test tests/UI.PlaywrightTests --filter MonTestSpecifique
+```
+
+**Mais la clôture d'une US exige le run global sans filter** :
+
+```bash
+dotnet test tests/UI.PlaywrightTests
+```
+
+**Pourquoi** : tous les tests Playwright partagent la **même instance `AppFixture`** (backend + frontend + DB démarrés une fois, fenêtre rate limiter partagée, DB non réinitialisée entre tests). Les collisions qui n'apparaissent qu'en suite :
+
+- Quota rate limiter atteint (auth, inscription, login).
+- État DB persistant entre tests (email unique, pseudonyme unique).
+- Tokens JWT expirés ou collisions de `sub` quand plusieurs tests forgent un JWT.
+- Compteurs de lockout / rejeu d'email de confirmation.
+
+Un test vert en `--filter` mais rouge en run global = **trou de conception** (soit dans le test, soit dans la neutralisation des protections cross-cutting — cf. section précédente). À fixer avant de déclarer l'US livrée. **Jamais de clôture sur la foi d'un run filtré.**
 
 ---
 

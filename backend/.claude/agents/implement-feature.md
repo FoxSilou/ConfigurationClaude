@@ -296,6 +296,27 @@ If the Read side was flagged as missing in Phase 0 and confirmed by the user, cr
 - **POST then GET** — never assert on database state directly. Always verify through the HTTP API.
 - **OpenAPI annotations are mandatory** on every new endpoint: `.WithName()`, `.WithTags()`, `.Produces<>()`, `.ProducesProblem()`. Without `.WithName()`, the frontend NSwag client cannot generate meaningful method names.
 
+### Post-E2E : mise à jour incrémentale du seeder administrateur (Identité uniquement)
+
+Si la commande qui vient d'être implémentée est **l'une des trois** : `InscrireUtilisateur`, `ConfirmerEmail`, `AttribuerRole`, mettre à jour `Identite.Write.Infrastructure/Persistence/AdministrateurSeeder.cs` selon le pattern incrémental documenté dans `rules/identity-framework.md` § « Ordonnancement scaffold ↔ feature — finalisation incrémentale ».
+
+Algorithme :
+
+1. **Lire** `AdministrateurSeeder.cs` et détecter les dispatchs déjà présents via recherche textuelle :
+   - `new InscrireUtilisateur(` → step 1/3 fait
+   - `new ConfirmerEmail(` → step 2/3 fait
+   - `new AttribuerRole(` → step 3/3 fait
+2. **Ajouter** le step correspondant à la commande qui vient d'être implémentée (voir le tableau de la rule pour le code exact de chaque step).
+3. **Mettre à jour le `throw` terminal** :
+   - Si 1 des 3 dispatchs présent → `throw new NotImplementedException("Suite : <commandes restantes>.")`
+   - Si 2 des 3 dispatchs présents → `throw new NotImplementedException("Suite : <commande restante>.")`
+   - Si **les 3 dispatchs** sont maintenant présents → **supprimer** le `throw`, ajouter un `LogInformation` de succès.
+4. **Activer l'appel** dans `src/Api/Program.cs` uniquement si les 3 dispatchs viennent d'être complétés : décommenter la ligne `// AdministrateurSeeder.EnsureAdministrateurAsync(...)`.
+5. **Vérifier la compilation** via `dotnet build`.
+6. **Mentionner** la mise à jour dans le résumé final de la feature : « Seeder admin : step N/3 ajouté » ou « Seeder admin complété + activé dans Program.cs ».
+
+**Ne jamais** exécuter le seeder via `dotnet run` durant la phase feature — c'est un effet de démarrage, pas une étape de la feature en cours. Les E2E (Phase 2) ne dépendent pas du seeder : ils créent leurs propres utilisateurs via les endpoints.
+
 ### Done — Feature Complete
 
 A feature is only considered **DONE** when all unit tests AND all E2E tests pass.

@@ -126,15 +126,21 @@ Create the persistence layer and port implementations for this bounded context.
 
 #### 1. Identity Setup (if Identité bounded context)
 
-**⚠️ Non-interactif** — si le nom du BC est `Identite` (ou variante `Identity`), appliquer **intégralement** le pattern défini dans `identity-framework.md` : ASP.NET Identity + JWT + lockout + rate limiting + `AdministrateurSeeder` stubbé `NotImplementedException` + projections Identity/email + ports sécurité (`IPasswordHasher`, `ITokenGenerator`, `IUtilisateurAuthReader`, `ILoginAttemptTracker`, `ICurrentUserAccessor`, `IEmailSender`). **Ne pas demander à l'utilisateur « full vs minimal »** — la rule prescrit le pattern complet sans option. La seule situation où l'Identity Setup est sauté : `identity-framework.md` volontairement hors scope du projet (aucune feature auth dans le story-map) — auquel cas l'utilisateur doit l'avoir explicité avant.
+**⚠️ Non-interactif** — si le nom du BC est `Identite` (ou variante `Identity`), appliquer **intégralement** le pattern défini dans `identity-framework.md` : ASP.NET Identity + JWT + lockout + rate limiting + `AdministrateurSeeder` stubbé `NotImplementedException` + `SeConnecter` stubbé `NotImplementedException` + projections Identity/email + ports sécurité (`IPasswordHasher`, `ITokenGenerator`, `IUtilisateurAuthReader`, `ILoginAttemptTracker`, `ICurrentUserAccessor`, `IEmailSender`). **Ne pas demander à l'utilisateur « full vs minimal »** — la rule prescrit le pattern complet sans option. La seule situation où l'Identity Setup est sauté : `identity-framework.md` volontairement hors scope du projet (aucune feature auth dans le story-map) — auquel cas l'utilisateur doit l'avoir explicité avant.
 
 If the bounded context involves user authentication, follow rule `identity-framework.md` for the full hybrid Identity pattern. Key steps:
 
 - Create `ApplicationUser`, `AppIdentityDbContext`, `IdentityDataSeeder` (infra layer). **`AppIdentityDbContext` utilise la chaîne `Read` existante — ❌ ne PAS ajouter de clé `"Identity"` dans `appsettings*.json`, ❌ ne PAS créer de base `<Solution>_Identity`.** Les tables `AspNet*` cohabitent avec les read models dans `<Solution>_Read`. Câblage : `AddWriteIdentite(config, readConnectionString)`. Voir `identity-framework.md` § "Connection String — partagée avec Read".
 - Create Identity projections syncing domain events → Identity tables via `UserManager`
 - For JWT: create `ITokenGenerator`, `IUtilisateurAuthReader` ports + infrastructure implementations
-- Create `AdministrateurSeeder` (infra layer) — seed event-sourced via `ICommandBus` (`InscrireUtilisateur` → `ConfirmerEmail` → `AttribuerRole`). Config via section `IdentitySeed` (`Email`, `Pseudonyme`) dans `appsettings.json` + password via user-secrets / env var `IdentitySeed__Password`. Invoqué depuis `Program.cs` **juste après** `IdentityDataSeeder.EnsureIdentityDatabaseAsync`, dans le même scope DI. Voir rule `identity-framework.md` § "Seed administrateur" pour la séquence complète et les guards d'idempotence.
-  - ⚠️ **Ordonnancement** : les commandes `InscrireUtilisateur`/`ConfirmerEmail`/`AttribuerRole` sont produites par `/task-implement-feature-back`, pas par le scaffold. Au scaffold BC, créer le seeder avec `throw new NotImplementedException(...)` comme corps, câbler appel + config + `Program.cs` immédiatement, et finaliser la séquence après l'implémentation TDD des 3 commandes. Voir rule `identity-framework.md` § "Ordonnancement scaffold ↔ feature".
+- Create `AdministrateurSeeder` (infra layer) — seed event-sourced via `ICommandBus` (`InscrireUtilisateur` → `ConfirmerEmail` → `AttribuerRole`). Config via section `IdentitySeed` (`Email`, `Pseudonyme`) dans `appsettings.json` + password via user-secrets / env var `IdentitySeed__Password`. L'appel est placé dans `Program.cs` **juste après** `IdentityDataSeeder.EnsureIdentityDatabaseAsync`, dans le même scope DI — mais **en commentaire** au scaffold (voir ci-dessous). Voir rule `identity-framework.md` § "Seed administrateur" pour la séquence complète et les guards d'idempotence.
+  - ⚠️ **Ordonnancement — finalisation incrémentale** : les commandes `InscrireUtilisateur` / `ConfirmerEmail` / `AttribuerRole` sont produites par `/task-implement-feature-back`, pas par le scaffold. Au scaffold BC Identité :
+    1. Créer `AdministrateurSeeder.cs` avec un **stub growable** : un bloc de commentaire « roadmap » en tête de méthode listant les 3 steps à venir (identique au tableau de la rule `identity-framework.md` § « Ordonnancement scaffold ↔ feature »), suivi de `throw new NotImplementedException("Finaliser après implémentation de InscrireUtilisateur/ConfirmerEmail/AttribuerRole.")`.
+    2. Ajouter la section `IdentitySeed` dans `appsettings.json` (`Email`, `Pseudonyme` uniquement — pas de `Password`).
+    3. Dans `Program.cs`, insérer la ligne d'appel **commentée** juste après `IdentityDataSeeder.EnsureIdentityDatabaseAsync`, avec le commentaire : `// AdministrateurSeeder.EnsureAdministrateurAsync activé une fois InscrireUtilisateur/ConfirmerEmail/AttribuerRole implémentés.`
+    4. **Ne rien coder d'autre** dans le stub : la finalisation est pilotée par l'agent `implement-feature` (voir `agents/implement-feature.md` § « Post-E2E : mise à jour incrémentale du seeder administrateur ») qui ajoute chaque step à mesure que les 3 commandes sont implémentées via TDD, et décommente l'appel dans `Program.cs` dès que les 3 sont présentes.
+
+- Create **`SeConnecter` stub command** in `Identite.Write.Application/SeConnecter.cs` — `sealed record SeConnecter(string Email, string MotDePasse) : ICommand<JetonAuthentification>` avec nested `Handler` injectant `IUtilisateurAuthReader`, `IPasswordHasher`, `ITokenGenerator`, `ILoginAttemptTracker`, `TimeProvider`. Body : `throw new NotImplementedException("Implémenter via /task-implement-feature-back SeConnecter.")`. Même pattern que le seeder : la signature est le plumbing, le body est la logique métier. Voir rule `identity-framework.md` § « SeConnecter (connexion) » pour le code complet du stub et de l'endpoint.
 
 See the rule for the complete checklist, naming conventions, and common mistakes to avoid.
 
@@ -243,6 +249,14 @@ For each command/query that needs HTTP exposure:
   ```
   
   Without these annotations, the frontend NSwag client cannot generate meaningful method names or typed responses.
+
+- **Identity-specific endpoint (if BC is Identite)** : en plus des endpoints CRUD standard, câbler l'endpoint de connexion :
+  - `POST /api/identite/connexion` → dispatch `SeConnecter` via `ICommandBus`, retourne `200 OK` avec le token JWT
+  - `.WithName("SeConnecter")`, `.WithTags("Identite")`
+  - `.Produces<ConnexionResponse>()`, `.ProducesProblem(StatusCodes.Status400BadRequest)`, `.ProducesProblem(StatusCodes.Status429TooManyRequests)`
+  - `.RequireRateLimiting("auth")`
+  - Request model `ConnexionRequest(string Email, string MotDePasse)` et response model `ConnexionResponse(string Token, DateTimeOffset Expiration)` dans l'API layer (pas dans Application)
+  - Voir rule `identity-framework.md` § « SeConnecter (connexion) » pour le code complet
 
 #### 3. Request/Response Models
 

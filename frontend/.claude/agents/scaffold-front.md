@@ -356,6 +356,55 @@ If the NSwag client infrastructure does not exist yet:
 
 The NSwag client generates typed methods (e.g., `InscrireUtilisateurAsync`, `ObtenirUtilisateurAsync`) from the backend OpenAPI spec. Gateway implementations use this client instead of raw `HttpClient` calls.
 
+#### 0b. Infrastructure d'authentification (si BC Identite détecté)
+
+Si `backend/Api.json` contient un endpoint `SeConnecter` ou `InscrireUtilisateur` (détection d'un BC Identite avec authentification), scaffolder l'infrastructure auth complète :
+
+**Ports** (`UI.Domain/Ports/`) :
+- `ITokenStorage` : `StockerAsync(string token, CancellationToken ct)`, `RecupererAsync(CancellationToken ct)`, `SupprimerAsync(CancellationToken ct)`
+- `ICurrentUserAccessor` : `UtilisateurCourant? Obtenir()`
+- VO `UtilisateurCourant` dans `UI.Domain/` : `sealed record UtilisateurCourant(Guid Id, string Email, IReadOnlyCollection<string> Roles, bool EstAdministrateur)`
+
+**Adapters** (`UI.Infrastructure/Authentication/`) :
+- `LocalStorageTokenStorage : ITokenStorage` — utilise `Blazored.LocalStorage` (`IJSRuntime` en WASM). Clé de stockage : `<projet>.authToken`.
+- `JwtAuthenticationStateProvider : AuthenticationStateProvider` — lit le token via `ITokenStorage`, parse les claims JWT (sub, email, name, role), expose l'état d'authentification. Implémente également `ICurrentUserAccessor` (retourne `UtilisateurCourant` depuis les claims sans exposer `ClaimsPrincipal`). Méthode `NotifierConnexionChangee()` pour trigger `NotifyAuthenticationStateChanged` après login/logout.
+- `AuthorizationMessageHandler : DelegatingHandler` — lit le token via `ITokenStorage` et injecte `Authorization: Bearer <token>` automatiquement sur chaque requête HTTP.
+
+**DI** (`Program.cs`) :
+```csharp
+builder.Services.AddBlazoredLocalStorage();
+builder.Services.AddAuthorizationCore();
+builder.Services.AddScoped<ITokenStorage, LocalStorageTokenStorage>();
+builder.Services.AddScoped<JwtAuthenticationStateProvider>();
+builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
+    sp.GetRequiredService<JwtAuthenticationStateProvider>());
+builder.Services.AddScoped<ICurrentUserAccessor>(sp =>
+    sp.GetRequiredService<JwtAuthenticationStateProvider>());
+builder.Services.AddScoped<AuthorizationMessageHandler>();
+```
+
+**HttpClient pipeline** : ajouter `AuthorizationMessageHandler` dans la chaîne du `HttpClient` nommé :
+```csharp
+builder.Services.AddHttpClient("<Projet>Api", client =>
+    client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"]!))
+    .AddHttpMessageHandler<AuthorizationMessageHandler>();
+```
+
+**App.razor** : encapsuler le routeur dans `<CascadingAuthenticationState>` + utiliser `<AuthorizeRouteView>` au lieu de `<RouteView>`.
+
+**⚠️ Piège WASM** : le client NSwag doit être instancié avec `ReadResponseAsString = true` pour éviter `NotSupportedException: net_http_synchronous_reads_not_supported` lors de la désérialisation des `ApiException<ProblemDetails>`. Voir memory `feedback_nswag_problemdetails.md`.
+
+**Page Connexion stub** :
+- Port `IConnexionGateway` dans `UI.Domain/Ports/` : `SeConnecterAsync(EmailPresenter.Valide email, MotDePassePresenter.Valide motDePasse, CancellationToken ct)` retournant `Task`
+- `ConnexionPresenter` shell dans `UI.Domain/Presenters/Connexion/` :
+  - Champs : `EmailPresenter Email`, `MotDePassePresenter MotDePasse` (réutiliser les Field Presenters existants s'ils sont déjà dans un dossier partagé type `Presenters/Commun/Champs/`, sinon les créer ici)
+  - Méthodes : `SeConnecterAsync()` (appelle le gateway puis `ITokenStorage.StockerAsync`), `SeDeconnecterAsync()` (appelle `ITokenStorage.SupprimerAsync` puis notifie le changement d'état auth)
+  - Injecte : `IConnexionGateway`, `ITokenStorage`, `INotificationService`
+  - **Body des méthodes : vide** (shells uniquement, logique implémentée via `/task-implement-feature-front`)
+- `HttpConnexionGateway` dans `UI.Infrastructure/Gateways/` : délègue à `IClient.SeConnecterAsync(ConnexionRequest, ct)`, attrape `ApiException` → `ApiExceptionTranslator.Traduire`
+- `Pages/Connexion.razor` route `@page "/connexion"` : binding Kit (`ChampTexte` pour email, `ChampMotDePasse` pour mot de passe, `Bouton` pour connexion), `data-testid` sur chaque élément (`connexion-email`, `connexion-mot-de-passe`, `connexion-bouton`, `connexion-erreur`). Auto-enregistrement NavMenu via `Fournisseur : IFournisseurEntreeNavigation` (ordre 5, icône `bi-box-arrow-in-right-nav-menu`, testId `nav-connexion`)
+- DI : `IConnexionGateway → HttpConnexionGateway` + `ConnexionPresenter` (Scoped)
+
 #### 1. Gateway Ports and Implementations
 
 For each backend API endpoint that the frontend needs:

@@ -358,6 +358,12 @@ Verifier l'US de bout en bout dans des conditions les plus proches du reel possi
 
 - Le projet `tests/UI.PlaywrightTests/` existe avec `Fixtures/AppFixture.cs` et `Features/`. Sinon -> recommander `/task-scaffold-front` puis revenir.
 - `playwright install` a deja ete execute sur la machine (sinon : `pwsh tests/UI.PlaywrightTests/bin/Debug/net*/playwright.ps1 install`).
+- Docker Desktop tourne (Testcontainers).
+
+**⚠️ Phase 4 NON SKIPPABLE.** Si un prerequis manque (Docker arrete, `playwright install` non fait, ports occupes), **stopper l'etape** :
+- Laisser la ligne dans `progression.md` en statut `⏳ en cours` (jamais `✅ fait`).
+- Demander explicitement a l'utilisateur de debloquer le prerequis avant de reprendre.
+- **Interdiction** de cloturer une US frontend avec la mention « Playwright non execute, a faire plus tard » : une US sans Playwright vert n'est **pas** livree.
 
 ### Steps
 
@@ -374,7 +380,9 @@ Verifier l'US de bout en bout dans des conditions les plus proches du reel possi
    - Backend `dotnet run` (process enfant, port libre).
    - Frontend `dotnet run` (process enfant, pointe sur le backend).
    - Playwright attaque l'URL frontend reelle.
-4. **Executer** : `dotnet test tests/UI.PlaywrightTests/`.
+4. **Executer deux fois** :
+   - (a) Run isole pendant redaction (optionnel, pour iterer vite) : `dotnet test tests/UI.PlaywrightTests --filter <NomDuTest>`.
+   - (b) **Run global obligatoire avant cloture** : `dotnet test tests/UI.PlaywrightTests` (sans filter). Tous les tests partagent la meme `AppFixture` (backend + DB demarres une fois) — une US verte en filter mais rouge en run global revele une collision (rate limiter, etat DB, quota tokens). **Stopper et fixer avant de declarer l'US livree.** Voir section « Run global obligatoire » du skill `frontend-testing`.
 5. **Diagnostiquer en cas d'echec** :
    - Front cassé (binding, Presenter, DI) ?
    - Backend cassé (endpoint, validation) ?
@@ -403,11 +411,15 @@ A frontend feature is considered **DONE** when:
 - DI is configured for the full chain: Component -> Presenter -> Gateway
 - **Le test Playwright E2E de l'US est ecrit et passe (Phase 4) contre la stack reelle (backend + DB lances).**
 
+**⚠️ La Phase 4 est une condition DoD non negociable.** Il est **interdit** de marquer l'etape `✅ fait` dans `progression.md` tant que le test Playwright golden path n'est pas ecrit ET vert. En cas de blocage technique (Docker arrete, prerequis manquant), laisser la ligne en statut `⏳ en cours` et signaler le blocage a l'utilisateur — jamais de skip silencieux avec promesse de rattrapage.
+
 **⚠️ DI chain verification** — Before declaring done, open `Program.cs` and confirm ALL registrations are present:
 1. `AddHttpClient<I<Feature>Gateway, Http<Feature>Gateway>(...)` — port→adapter
 2. `AddScoped<<Feature>Presenter>()` — presenter
 
 A missing registration compiles but crashes at runtime with `CannotResolveService`. This is the #1 frontend scaffolding pitfall.
+
+**⚠️ Symetrie `E2EFixture` / `AppFixture`** — Before declaring done, verifier que toute cle `InMemoryCollection` presente dans `backend/tests/<*>.E2E.Tests/E2EFixture.cs` (`ConfigureAppConfiguration`) est repliquee en env var dans `envBackend` de `frontend/tests/<*>.PlaywrightTests/Fixtures/AppFixture.cs` (separateur `__` au lieu de `:`). Sans cette symetrie, les protections cross-cutting backend (rate limiter, lockout, throttling mail) restent actives en E2E front et font echouer le run global — alors que chaque test est vert en `--filter`. Voir section « Neutraliser les protections cross-cutting » du skill `frontend-testing`.
 
 Report:
 - All tests passing (xUnit Presenter + bUnit eventuel + Playwright E2E)

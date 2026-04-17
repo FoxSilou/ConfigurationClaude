@@ -247,10 +247,93 @@ L'email de confirmation est envoyé via une **projection** sur `UtilisateurInscr
 - **Si section/password manquant** : log warning et skip — pas d'exception, pas de crash au démarrage.
 - **Intégration** : classe statique `AdministrateurSeeder.EnsureAdministrateurAsync(IServiceProvider serviceProvider, CancellationToken ct = default)` dans `Identity.Write.Infrastructure/Persistence/`. Appelée dans `Program.cs` dans le même `using var scope = app.Services.CreateScope()` que `IdentityDataSeeder.EnsureIdentityDatabaseAsync`, **juste après** celui-ci (les tables Identity doivent exister et les rôles être seedés avant).
 - **Logs** : `LogInformation` quand seed exécuté ("Seed administrateur en cours pour {Email}…" / "Seed administrateur réussi pour {Email} (id {Id})."), `LogInformation` si déjà présent, `LogWarning` si config incomplète.
-- **Ordonnancement scaffold ↔ feature** : le seeder dépend des commandes `InscrireUtilisateur`, `ConfirmerEmail` et `AttribuerRole`, qui sont produites par `/task-implement-feature-back` (et non par le scaffold). Règle :
-  1. Au scaffold BC Identité (`/task-scaffold-back Identite`), créer le fichier `AdministrateurSeeder.EnsureAdministrateurAsync` avec un corps `throw new NotImplementedException("Finaliser après implémentation de InscrireUtilisateur/ConfirmerEmail/AttribuerRole")`, ajouter la section `IdentitySeed` dans `appsettings.json`, et câbler l'appel dans `Program.cs` dès maintenant (juste après `IdentityDataSeeder.EnsureIdentityDatabaseAsync`, dans le même scope DI).
-  2. Ne **pas** exécuter l'API tant que les 3 commandes ne sont pas implémentées (sinon crash au boot).
-  3. Après `/task-implement-feature-back` sur les 3 commandes, remplacer le `NotImplementedException` par la séquence complète (guard `ExisteParEmailAsync` + 3 dispatchs `ICommandBus` + logs). Tests E2E doivent passer avec un admin seedé au démarrage.
+- **Ordonnancement scaffold ↔ feature — finalisation incrémentale** : le seeder dépend des commandes `InscrireUtilisateur`, `ConfirmerEmail` et `AttribuerRole`, produites par `/task-implement-feature-back` (et non par le scaffold). Il est construit **par addition**, un step par commande, pas en bloc final. L'agent `implement-feature` détecte la commande qu'il vient d'implémenter et met à jour le seeder en conséquence.
+
+  | Étape | Déclenché par | Effet sur `AdministrateurSeeder.cs` | Effet sur `Program.cs` |
+  |---|---|---|---|
+  | Scaffold BC | `/task-scaffold-back Identite` | Stub : roadmap en commentaire + `throw new NotImplementedException("Finaliser après implémentation de InscrireUtilisateur/ConfirmerEmail/AttribuerRole.")` | Appel **commenté** avec note « activé une fois les 3 commandes implémentées », placé juste après `IdentityDataSeeder.EnsureIdentityDatabaseAsync` dans le même scope DI |
+  | Feature 1/3 | `/task-implement-feature-back InscrireUtilisateur` | Charger config (`Email`, `Pseudonyme`, `Password`), warning+return si incomplet, guard `ExisteParEmailAsync`, dispatch `InscrireUtilisateur` et capturer `UtilisateurId`. Conserver `throw new NotImplementedException("Suite : ConfirmerEmail + AttribuerRole.")` en fin de méthode | Inchangé (toujours commenté) |
+  | Feature 2/3 | `/task-implement-feature-back ConfirmerEmail` | Après le dispatch `InscrireUtilisateur` : reload via `IUtilisateurRepository.ObtenirParIdAsync(id)` pour lire `TokenDeConfirmation.Valeur`, puis dispatch `ConfirmerEmail`. Actualiser le message du `throw` terminal en `"Suite : AttribuerRole."` | Inchangé (toujours commenté) |
+  | Feature 3/3 | `/task-implement-feature-back AttribuerRole` | Ajouter `ICommandBus.EnvoyerAsync(new AttribuerRole(id.Valeur, RoleUtilisateur.Administrateur.Valeur))`. **Supprimer** le `throw NotImplementedException` terminal. Ajouter `LogInformation` succès. | **Décommenter** `await AdministrateurSeeder.EnsureAdministrateurAsync(scope.ServiceProvider);` |
+
+  **Règle d'ordre des 3 stories** : libre. L'agent implémente celle que l'utilisateur demande et détecte l'état courant du seeder (présence/absence des dispatchs `InscrireUtilisateur`, `ConfirmerEmail`, `AttribuerRole`) pour insérer son step au bon endroit. Le `throw` terminal est remplacé / mis à jour à chaque passage.
+
+  **Garde-fou** : tant que les 3 dispatchs ne sont pas là, l'appel reste commenté dans `Program.cs`. Le `throw NotImplementedException` terminal du seeder n'est donc jamais exécuté en pratique — il sert de filet si quelqu'un décommente prématurément.
+
+  **Ne pas exécuter l'API** tant que les 3 commandes ne sont pas implémentées via un appel décommenté : crash au boot garanti sur le `throw`.
+
+## SeConnecter (connexion)
+
+La commande `SeConnecter` est **stubbée au scaffold** (Mode 2, Identity Setup) et **implémentée via `/task-implement-feature-back`**. Elle n'intervient pas dans le seeder administrateur (orthogonal — le seeder crée un admin, la connexion permet à n'importe quel utilisateur de s'authentifier).
+
+### Ordonnancement scaffold ↔ feature
+
+| Étape | Déclenché par | Produit |
+|---|---|---|
+| Scaffold BC | `/task-scaffold-back Identite` | Stub `SeConnecter(string Email, string MotDePasse) : ICommand<JetonAuthentification>` avec handler `throw new NotImplementedException(...)`. Endpoint `POST /api/identite/connexion` câblé avec `.RequireRateLimiting("auth")` + annotations OpenAPI. Request/Response models dans l'API layer. |
+| Feature | `/task-implement-feature-back SeConnecter` | Handler body : vérification lockout (`ILoginAttemptTracker.EstVerrouilleAsync`), lecture auth data (`IUtilisateurAuthReader`), vérification password (`IPasswordHasher.Verifier`), tracking tentatives (échec/reset), génération JWT (`ITokenGenerator`). Tests unitaires + E2E. |
+
+### Stub command (scaffold)
+
+```csharp
+// Identite.Write.Application/SeConnecter.cs
+public sealed record SeConnecter(string Email, string MotDePasse) : ICommand<JetonAuthentification>
+{
+    public sealed class Handler(
+        IUtilisateurAuthReader authReader,
+        IPasswordHasher passwordHasher,
+        ITokenGenerator tokenGenerator,
+        ILoginAttemptTracker loginAttemptTracker,
+        TimeProvider timeProvider) : ICommandHandler<SeConnecter, JetonAuthentification>
+    {
+        public Task<JetonAuthentification> HandleAsync(SeConnecter commande, CancellationToken ct = default)
+        {
+            throw new NotImplementedException(
+                "Implémenter via /task-implement-feature-back SeConnecter.");
+        }
+    }
+}
+```
+
+### Endpoint (scaffold)
+
+```csharp
+app.MapPost("/api/identite/connexion", async (ConnexionRequest request, ICommandBus commandBus, CancellationToken ct) =>
+{
+    var commande = new SeConnecter(request.Email, request.MotDePasse);
+    var jeton = await commandBus.EnvoyerAsync<SeConnecter, JetonAuthentification>(commande, ct);
+    return Results.Ok(new ConnexionResponse(jeton.Valeur, jeton.Expiration));
+})
+    .WithName("SeConnecter")
+    .WithTags("Identite")
+    .Produces<ConnexionResponse>()
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status429TooManyRequests)
+    .RequireRateLimiting("auth");
+```
+
+Request/Response models (dans l'API layer, pas dans Application) :
+
+```csharp
+internal sealed record ConnexionRequest(string Email, string MotDePasse);
+internal sealed record ConnexionResponse(string Token, DateTimeOffset Expiration);
+```
+
+### Garde-fou
+
+Tant que le handler n'est pas implémenté, tout appel à `POST /api/identite/connexion` retourne une `500 Internal Server Error` (le `NotImplementedException` est attrapé par le middleware Problem Details). C'est acceptable : le scaffold pose le plumbing, la logique métier arrive avec la feature.
+
+## SeDeconnecter (déconnexion)
+
+La déconnexion **ne nécessite pas de commande backend**. Le JWT est stateless ; la déconnexion consiste à :
+
+1. Supprimer le token côté client via `ITokenStorage.SupprimerAsync()`
+2. Notifier le changement d'état auth via `AuthenticationStateProvider.NotifyAuthenticationStateChanged()`
+3. Rediriger vers `/connexion` (optionnel, selon l'UX)
+
+Le scaffold frontend produit une méthode `SeDeconnecterAsync()` dans le `ConnexionPresenter` qui enchaîne ces opérations. Voir rule `authentification-frontend.md` § Déconnexion.
+
+**Remarque** : un compte supprimé (`StatutUtilisateur.Supprime`) a `LockoutEnd = DateTimeOffset.MaxValue` dans Identity — même si un ancien JWT non-expiré circule encore, le prochain appel à `SeConnecter` échouera via `ILoginAttemptTracker.EstVerrouilleAsync`. La déconnexion client-side est donc suffisante pour couper l'accès immédiat, et le lockout serveur empêche la reconnexion.
 
 ## Common Mistakes
 
@@ -270,6 +353,7 @@ L'email de confirmation est envoyé via une **projection** sur `UtilisateurInscr
 | Extraire `sub`/`roles` manuellement depuis `ClaimsPrincipal` dans un endpoint ou un handler | Duplication, fuite de claims dans la couche HTTP, fragile (claim mapping JWT, fallback `?? "sub"` inutile) | Injecter `ICurrentUserAccessor` et appeler `Obtenir()` |
 | Passer `roles` ou `demandeurId` en paramètre de commande depuis l'endpoint | Couple le domaine au transport HTTP, contourne le port, pollue la signature de la commande | Le handler injecte `ICurrentUserAccessor` et lit le contexte lui-même |
 | Utiliser `FindFirstValue(ClaimTypes.NameIdentifier)` au lieu de `UserManager.GetUserId(user)` | Ne respecte pas `IdentityOptions.ClaimsIdentity.UserIdClaimType` configuré dans Identity | `UserManager<ApplicationUser>.GetUserId(ClaimsPrincipal)` est l'API officielle Identity, exclusivement dans l'adaptateur `HttpContextCurrentUserAccessor` |
+| Ne pas scaffolder `SeConnecter` dans le BC Identite | L'app a toute l'infra auth (JWT, ports, adapters, rate limiting) mais aucun moyen pour l'utilisateur de se connecter — le flux d'inscription est complet mais inutilisable | `SeConnecter` fait partie du scaffold Identity Setup (Mode 2 Phase 1), pas d'une feature optionnelle — voir § SeConnecter ci-dessus |
 
 
 ---

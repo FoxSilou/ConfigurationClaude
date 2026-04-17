@@ -20,9 +20,26 @@ L'authentification est une **préoccupation d'infrastructure** : elle est géré
 - Utiliser `AuthorizeView` / `[Authorize]` pour masquer ou protéger les composants et pages sensibles.
 - Les Presenters ne lisent pas `ClaimsPrincipal` directement : s'ils ont besoin de l'utilisateur courant, ils passent par un port `ICurrentUserAccessor` (adapter côté infra qui lit l'`AuthenticationState`).
 
+## Connexion (SeConnecter)
+
+- Le `ConnexionPresenter` est le seul Presenter qui interagit avec `ITokenStorage` (pour stocker le token recu du backend apres authentification reussie).
+- L'appel a `ITokenStorage.StockerAsync()` est suivi de `JwtAuthenticationStateProvider.NotifierConnexionChangee()` pour mettre a jour l'etat d'authentification Blazor (`NotifyAuthenticationStateChanged`).
+- Le Presenter n'accede **jamais** directement au `localStorage` — il passe par le port `ITokenStorage`.
+
+## Deconnexion (SeDeconnecter)
+
+La deconnexion **ne necessite pas de commande backend** (JWT stateless). Elle est une operation client-side :
+
+1. `ConnexionPresenter.SeDeconnecterAsync()` appelle `ITokenStorage.SupprimerAsync()`
+2. Puis notifie le changement d'etat auth via `JwtAuthenticationStateProvider.NotifierConnexionChangee()`
+3. Optionnel : navigation vers `/connexion`
+
+Le `ConnexionPresenter` est scaffolde avec cette methode (shell). La logique complete (appel gateway, stockage token, gestion erreurs) est implementee via `/task-implement-feature-front`.
+
 ## Ce qui est interdit
 
-- Lire / écrire le token depuis un Presenter ou une page.
+- Lire / ecrire le token depuis un Presenter ou une page, sauf les Presenters du cycle de vie auth (`ConnexionPresenter` pour login/logout, `SuppressionComptePresenter` pour effacer le token apres auto-suppression) qui passent par `ITokenStorage`.
 - Hardcoder `Authorization` dans un Gateway.
 - Dupliquer la logique de refresh / redirection 401 dans plusieurs Gateways.
-- Tester un `ClaimsPrincipal` directement dans un composant métier (utiliser `AuthorizeView` ou le port).
+- Tester un `ClaimsPrincipal` directement dans un composant metier (utiliser `AuthorizeView` ou le port).
+- Appeler `ITokenStorage` depuis un Gateway ou un composant `.razor` — seuls les Presenters du cycle de vie auth y ont acces.
